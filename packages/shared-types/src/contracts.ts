@@ -1,6 +1,7 @@
 export type SourceType = "text" | "epub";
 export type ArticleStatus = "processing" | "ready" | "failed";
 export type VocabStatus = "new" | "learning" | "known";
+export type VocabReviewResult = "fail" | "pass";
 
 export type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1" | "Unknown";
 
@@ -115,7 +116,13 @@ export interface VocabItemResponse {
   source_article_id?: string | null;
   source_sentence?: string | null;
   status: VocabStatus;
+  next_review_at?: string | null;
+  review_count: number;
   created_at: string;
+}
+
+export interface VocabReviewRequest {
+  result: VocabReviewResult;
 }
 
 export interface HighlightCreateRequest {

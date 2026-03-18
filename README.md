@@ -10,6 +10,7 @@ Yomuyomu 是面向日语学习者的 Web SaaS 阅读器 MVP。
 - NLP lookup 返回稳定字段：`lemma`、`reading`、`pos`、`meanings`、`primary_meaning`、`jlpt_level`、`frequency_band`、`example_sentence`、`usage_note`。
 - lookup 排序优化：`lemma > surface > reading`，并结合常用度、sense 优先级、读音匹配进行排序。
 - 支持常见动词/形容词变形后的回原形命中（Sudachi 归一化 + 规则回退）。
+- 支持 JLPT / 词频导入脚本（`scripts/import_jlpt`、`scripts/import_frequency`）生成标准映射文件。
 
 2. AI explanation 升级
 - 结构化输出新增：`why_this_expression`、`alternative_expressions`。
@@ -24,7 +25,9 @@ Yomuyomu 是面向日语学习者的 Web SaaS 阅读器 MVP。
 - `vocab_items` 增加 `status`：`new | learning | known`。
 - `GET /vocab?bucket=today_new`：今日新增。
 - `GET /vocab?bucket=unmastered`：未掌握（new/learning）。
+- `GET /vocab?bucket=review_due`：到期复习（new/learning 且到期）。
 - `PATCH /vocab/{id}/status`：切换掌握状态。
+- `PATCH /vocab/{id}/review`：按复习结果推进调度（`fail|pass`）。
 
 5. 学习统计展示
 - 新增 `GET /analytics/today`。
@@ -110,6 +113,13 @@ npm run dev --workspace @yomuyomu/web -- --port 3001
 
 如果你本机 `3000` 已被其他项目占用，请保持 `--port 3001`。
 
+## EPUB 导入说明
+
+- 创建文章时可使用 `source_type=epub`。
+- `raw_content` 传入 base64 EPUB 内容，支持：
+  - `base64:<payload>`
+  - `data:application/epub+zip;base64,<payload>`
+
 ## JMDict 导入（生产路径）
 
 ```bash
@@ -121,6 +131,7 @@ python scripts/import_jmdict/import_jmdict.py \
 说明：
 - 默认查询路径是 JMDict sqlite。
 - seed lookup 仅用于开发 fallback（`ALLOW_SEED_FALLBACK=true` 时启用）。
+- AI provider 默认是 `openai`；若未配置 `OPENAI_API_KEY`，服务会自动降级为 `mock`。
 
 ## 测试与校验
 

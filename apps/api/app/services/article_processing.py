@@ -10,6 +10,7 @@ from sqlalchemy import delete, select
 
 from app.db.session import SessionLocal
 from app.models.entities import Article, ArticleBlock, TokenOccurrence
+from app.services.epub_parser import extract_text_from_epub_payload
 from app.services.nlp_client import nlp_client
 from app.services.product_analytics import EVENT_ARTICLE_PROCESSED, record_product_event
 
@@ -29,6 +30,15 @@ def split_text_blocks(content: str) -> list[str]:
     if lines:
         return lines
     return [content] if content else []
+
+
+def _parse_article_content(source_type: str, raw_content: str) -> str:
+    if source_type == "text":
+        return normalize_content(raw_content)
+    if source_type == "epub":
+        extracted = extract_text_from_epub_payload(raw_content)
+        return normalize_content(extracted)
+    raise ValueError(f"Unsupported source_type={source_type}")
 
 
 def _safe_int(value: object, fallback: int = 0) -> int:
@@ -52,14 +62,11 @@ def _process_article(article_id: UUID) -> None:
 
         logger.info("article_processing_start article_id=%s source_type=%s", article_id, article.source_type)
 
-        article.status = "processing"
-        article.processing_error = None
-        article.normalized_content = normalize_content(article.raw_content)
-        db.commit()
-
-        if article.source_type != "text":
+        try:
+            normalized_content = _parse_article_content(article.source_type, article.raw_content)
+        except ValueError as exc:
             article.status = "failed"
-            article.processing_error = "Only source_type=text is supported in current MVP"
+            article.processing_error = str(exc)
             record_product_event(
                 db,
                 user_id=article.user_id,
@@ -75,6 +82,11 @@ def _process_article(article_id: UUID) -> None:
                 (perf_counter() - started_at) * 1000,
             )
             return
+
+        article.status = "processing"
+        article.processing_error = None
+        article.normalized_content = normalized_content
+        db.commit()
 
         db.execute(delete(TokenOccurrence).where(TokenOccurrence.article_id == article.id))
         db.execute(delete(ArticleBlock).where(ArticleBlock.article_id == article.id))

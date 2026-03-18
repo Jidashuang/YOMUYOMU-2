@@ -4,7 +4,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db_session
@@ -13,10 +13,11 @@ from app.schemas.vocab import (
     DeleteResponse,
     VocabItemCreateRequest,
     VocabItemResponse,
+    VocabReviewRequest,
     VocabStatusUpdateRequest,
 )
 from app.services.vocab_export import export_vocab_csv, export_vocab_json
-from app.services.vocab_service import create_vocab_item
+from app.services.vocab_service import apply_review_result, apply_status_schedule, create_vocab_item
 
 router = APIRouter(prefix="/vocab", tags=["vocab"])
 
@@ -34,6 +35,8 @@ def _to_response(item: VocabItem) -> VocabItemResponse:
         source_article_id=item.source_article_id,
         source_sentence=item.source_sentence,
         status=item.status or "new",
+        next_review_at=item.next_review_at,
+        review_count=item.review_count or 0,
         created_at=item.created_at,
     )
 
@@ -71,6 +74,12 @@ def list_vocab(
         )
     elif bucket == "unmastered":
         statement = statement.where(VocabItem.status.in_(["new", "learning"]))
+    elif bucket == "review_due":
+        now = datetime.now(timezone.utc)
+        statement = statement.where(
+            VocabItem.status.in_(["new", "learning"]),
+            or_(VocabItem.next_review_at.is_(None), VocabItem.next_review_at <= now),
+        )
 
     rows = db.scalars(statement.order_by(VocabItem.created_at.desc())).all()
     return [_to_response(row) for row in rows]
@@ -92,7 +101,29 @@ def update_vocab_status(
     if row is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vocab item not found")
 
-    row.status = payload.status
+    apply_status_schedule(row, payload.status)
+    db.commit()
+    db.refresh(row)
+    return _to_response(row)
+
+
+@router.patch("/{vocab_id}/review", response_model=VocabItemResponse)
+def review_vocab(
+    vocab_id: str,
+    payload: VocabReviewRequest,
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+) -> VocabItemResponse:
+    try:
+        vocab_uuid = UUID(vocab_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vocab item not found") from exc
+
+    row = db.scalar(select(VocabItem).where(VocabItem.id == vocab_uuid, VocabItem.user_id == current_user.id))
+    if row is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vocab item not found")
+
+    apply_review_result(row, payload.result)
     db.commit()
     db.refresh(row)
     return _to_response(row)

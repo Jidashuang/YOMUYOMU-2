@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7
 
-    llm_provider: str = "mock"
+    llm_provider: str = "openai"
     openai_api_key: str | None = None
     openai_model: str = "gpt-4.1-mini"
     openai_timeout_seconds: float = 30.0

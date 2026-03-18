@@ -21,9 +21,13 @@ Authorization: Bearer <jwt>
 - Creates article with `status=processing`.
 - Enqueues async processing.
 - Emits event: `article_created`.
+- Supports `source_type=text|epub`.
+- For `source_type=epub`, `raw_content` accepts base64 payload:
+  - `base64:<payload>`
+  - `data:application/epub+zip;base64,<payload>`
 
 ### Processing lifecycle
-- Background worker persists blocks/tokens.
+- Background worker parses source content (text normalization or epub extraction), then persists blocks/tokens.
 - Emits event: `article_processed` with payload status `ready|failed`.
 
 ### GET `/articles`
@@ -87,11 +91,15 @@ Side effect:
 
 ### POST `/vocab`
 - Emits event: `vocab_added`.
+- Response fields include scheduling metadata:
+  - `next_review_at` (datetime or null)
+  - `review_count` (integer)
 
 ### GET `/vocab`
 Optional query:
 - `bucket=today_new` -> status=`new` and created today (UTC)
 - `bucket=unmastered` -> status in `new|learning`
+- `bucket=review_due` -> status in `new|learning` and `next_review_at <= now` (or null)
 
 ### PATCH `/vocab/{id}/status`
 Request:
@@ -101,6 +109,19 @@ Request:
   "status": "learning"
 }
 ```
+
+### PATCH `/vocab/{id}/review`
+Request:
+
+```json
+{
+  "result": "pass"
+}
+```
+
+Result:
+- `fail`: keep in learning and schedule near-term retry
+- `pass`: increase `review_count`, widen next interval, auto-mark `known` after enough passes
 
 ### DELETE `/vocab/{id}`
 ### GET `/vocab/export.csv`

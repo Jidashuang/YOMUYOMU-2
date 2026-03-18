@@ -1,5 +1,6 @@
 "use client";
 
+import type { SourceType } from "@yomuyomu/shared-types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -20,7 +21,10 @@ export default function LibraryPage() {
   const { hydrated, isAuthorized } = useRequireAuth();
 
   const [title, setTitle] = useState("Sample Japanese Text");
+  const [sourceType, setSourceType] = useState<SourceType>("text");
   const [rawContent, setRawContent] = useState("彼は来るはずだったのに。\n今日は雨が降っている。\n明日は晴れるだろう。");
+  const [epubPayload, setEpubPayload] = useState("");
+  const [epubFileName, setEpubFileName] = useState("");
 
   const articlesQuery = useQuery({
     queryKey: ["articles"],
@@ -39,8 +43,8 @@ export default function LibraryPage() {
     mutationFn: () =>
       createArticle({
         title,
-        source_type: "text",
-        raw_content: rawContent,
+        source_type: sourceType,
+        raw_content: sourceType === "epub" ? epubPayload : rawContent,
       }),
     onSuccess: (article) => {
       queryClient.invalidateQueries({ queryKey: ["articles"] });
@@ -81,7 +85,7 @@ export default function LibraryPage() {
       </header>
 
       <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="font-medium">创建文章（Text）</h2>
+        <h2 className="font-medium">创建文章</h2>
         <form
           className="mt-4 space-y-4"
           onSubmit={(event) => {
@@ -89,6 +93,18 @@ export default function LibraryPage() {
             createMutation.mutate();
           }}
         >
+          <label className="block text-sm">
+            来源
+            <select
+              className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
+              value={sourceType}
+              onChange={(event) => setSourceType(event.target.value as SourceType)}
+            >
+              <option value="text">text</option>
+              <option value="epub">epub</option>
+            </select>
+          </label>
+
           <label className="block text-sm">
             标题
             <input
@@ -100,16 +116,45 @@ export default function LibraryPage() {
             />
           </label>
 
-          <label className="block text-sm">
-            正文
-            <textarea
-              data-testid="create-article-content"
-              className="mt-1 min-h-[160px] w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
-              value={rawContent}
-              onChange={(event) => setRawContent(event.target.value)}
-              required
-            />
-          </label>
+          {sourceType === "text" ? (
+            <label className="block text-sm">
+              正文
+              <textarea
+                data-testid="create-article-content"
+                className="mt-1 min-h-[160px] w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
+                value={rawContent}
+                onChange={(event) => setRawContent(event.target.value)}
+                required
+              />
+            </label>
+          ) : (
+            <label className="block text-sm">
+              EPUB 文件
+              <input
+                className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700"
+                type="file"
+                accept=".epub,application/epub+zip"
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) {
+                    setEpubPayload("");
+                    setEpubFileName("");
+                    return;
+                  }
+                  setEpubFileName(file.name);
+                  const reader = new FileReader();
+                  reader.onload = () => {
+                    if (typeof reader.result === "string") {
+                      setEpubPayload(reader.result);
+                    }
+                  };
+                  reader.readAsDataURL(file);
+                }}
+                required
+              />
+              {epubFileName ? <p className="mt-1 text-xs text-zinc-500">已选择：{epubFileName}</p> : null}
+            </label>
+          )}
 
           {createMutation.isError ? <p className="text-sm text-red-600">{(createMutation.error as Error).message}</p> : null}
 
@@ -117,7 +162,7 @@ export default function LibraryPage() {
             type="submit"
             data-testid="create-article-submit"
             className="rounded-md bg-brand-500 px-4 py-2 text-white hover:bg-brand-700 disabled:opacity-60"
-            disabled={createMutation.isPending}
+            disabled={createMutation.isPending || (sourceType === "epub" && !epubPayload)}
           >
             {createMutation.isPending ? "创建中..." : "创建文章"}
           </button>

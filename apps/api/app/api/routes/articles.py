@@ -58,6 +58,10 @@ def _build_article_detail(db: Session, article: Article) -> ArticleDetailRespons
         for block in blocks
     ]
 
+    normalized_content = article.normalized_content
+    if not normalized_content and article.source_type == "text":
+        normalized_content = article.raw_content
+
     return ArticleDetailResponse(
         id=article.id,
         title=article.title,
@@ -66,7 +70,7 @@ def _build_article_detail(db: Session, article: Article) -> ArticleDetailRespons
         processing_error=article.processing_error,
         created_at=article.created_at,
         raw_content=article.raw_content,
-        normalized_content=article.normalized_content or article.raw_content,
+        normalized_content=normalized_content or "",
         blocks=block_responses,
     )
 
@@ -83,7 +87,7 @@ def create_article(
         source_type=payload.source_type,
         status="processing",
         raw_content=payload.raw_content,
-        normalized_content=normalize_content(payload.raw_content),
+        normalized_content=normalize_content(payload.raw_content) if payload.source_type == "text" else None,
         processing_error=None,
     )
     db.add(article)

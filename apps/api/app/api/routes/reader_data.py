@@ -66,6 +66,8 @@ def _vocab_to_response(row) -> VocabItemResponse:
         source_article_id=row.source_article_id,
         source_sentence=row.source_sentence,
         status=row.status or "new",
+        next_review_at=row.next_review_at,
+        review_count=row.review_count or 0,
         created_at=row.created_at,
     )
 

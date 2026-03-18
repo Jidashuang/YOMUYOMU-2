@@ -20,6 +20,7 @@ import type {
   ReaderLookupRequest,
   ReadingProgressUpsertRequest,
   UserProfile,
+  VocabReviewResult,
   VocabStatus,
   VocabItemCreateRequest,
   VocabItemResponse,
@@ -98,7 +99,7 @@ export function saveVocabFromReader(input: VocabItemCreateRequest): Promise<Voca
   });
 }
 
-export function listVocab(bucket?: "today_new" | "unmastered"): Promise<VocabItemResponse[]> {
+export function listVocab(bucket?: "today_new" | "unmastered" | "review_due"): Promise<VocabItemResponse[]> {
   const search = new URLSearchParams();
   if (bucket) {
     search.set("bucket", bucket);
@@ -126,6 +127,14 @@ export function updateVocabStatus(vocabId: string, status: VocabStatus): Promise
   return requestJson<VocabItemResponse>(`/vocab/${vocabId}/status`, {
     method: "PATCH",
     body: { status },
+    auth: true,
+  });
+}
+
+export function reviewVocab(vocabId: string, result: VocabReviewResult): Promise<VocabItemResponse> {
+  return requestJson<VocabItemResponse>(`/vocab/${vocabId}/review`, {
+    method: "PATCH",
+    body: { result },
     auth: true,
   });
 }

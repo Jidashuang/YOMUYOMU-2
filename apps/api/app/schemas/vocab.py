@@ -7,6 +7,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 VocabStatus = Literal["new", "learning", "known"]
+VocabReviewResult = Literal["fail", "pass"]
 
 
 class VocabItemCreateRequest(BaseModel):
@@ -34,11 +35,17 @@ class VocabItemResponse(BaseModel):
     source_article_id: UUID | None
     source_sentence: str | None
     status: VocabStatus
+    next_review_at: datetime | None = None
+    review_count: int = 0
     created_at: datetime
 
 
 class VocabStatusUpdateRequest(BaseModel):
     status: VocabStatus
+
+
+class VocabReviewRequest(BaseModel):
+    result: VocabReviewResult
 
 
 class DeleteResponse(BaseModel):
