@@ -1,0 +1,95 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: yomuyomu-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-yomuyomu}
+      POSTGRES_USER: ${POSTGRES_USER:-yomuyomu}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yomuyomu}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yomuyomu}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: yomuyomu-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build:
+      context: .
+      dockerfile: infra/docker/api.Dockerfile
+    container_name: yomuyomu-api
+    environment:
+      APP_NAME: Yomuyomu API
+      APP_VERSION: 0.1.0
+      API_CORS_ORIGINS: http://localhost:3000
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-yomuyomu}:${POSTGRES_PASSWORD:-yomuyomu}@postgres:5432/${POSTGRES_DB:-yomuyomu}
+      REDIS_URL: redis://redis:6379/0
+      NLP_SERVICE_URL: http://nlp:8001
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-10080}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
+      OPENAI_TIMEOUT_SECONDS: ${OPENAI_TIMEOUT_SECONDS:-30}
+      OPENAI_MAX_RETRIES: ${OPENAI_MAX_RETRIES:-2}
+      AI_PROMPT_VERSION: ${AI_PROMPT_VERSION:-v2}
+      AI_CACHE_TTL_SECONDS: ${AI_CACHE_TTL_SECONDS:-86400}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  nlp:
+    build:
+      context: .
+      dockerfile: infra/docker/nlp.Dockerfile
+    container_name: yomuyomu-nlp
+    environment:
+      APP_NAME: Yomuyomu NLP
+      APP_VERSION: 0.1.0
+      API_CORS_ORIGINS: http://localhost:3000
+      JLPT_MAP_PATH: /app/services/nlp/data/jlpt_sample.csv
+      FREQUENCY_MAP_PATH: /app/services/nlp/data/frequency_sample.csv
+      JMDICT_DB_PATH: /app/services/nlp/data/jmdict.sqlite
+      LOOKUP_SEED_PATH: /app/services/nlp/data/lookup_seed.json
+      ALLOW_SEED_FALLBACK: false
+    ports:
+      - "8001:8001"
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/web.Dockerfile
+    container_name: yomuyomu-web
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+      NEXT_PUBLIC_NLP_BASE_URL: http://localhost:8001
+    depends_on:
+      - api
+      - nlp
+    ports:
+      - "3000:3000"
+
+volumes:
+  postgres_data:
+  redis_data:

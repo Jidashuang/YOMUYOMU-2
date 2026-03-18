@@ -1,0 +1,16 @@
+{
+  "来る": {
+    "reading": "くる",
+    "pos": ["verb"],
+    "meanings": ["to come", "to arrive"],
+    "jlpt_level": "N5",
+    "frequency_band": "top-1k"
+  },
+  "彼": {
+    "reading": "かれ",
+    "pos": ["pronoun"],
+    "meanings": ["he", "boyfriend"],
+    "jlpt_level": "N5",
+    "frequency_band": "top-5k"
+  }
+}
