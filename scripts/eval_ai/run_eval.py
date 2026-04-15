@@ -30,7 +30,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--mode", choices=["api", "offline-mock"], default="api", help="Evaluation mode")
     parser.add_argument("--api-base-url", default="http://localhost:8000", help="API base URL")
     parser.add_argument("--email", default="eval@example.com", help="Eval account email")
-    parser.add_argument("--password", default="password123", help="Eval account password")
+    parser.add_argument("--password", default="strong-password-123", help="Eval account password")
     parser.add_argument(
         "--input",
         default="scripts/eval_ai/samples.jsonl",
@@ -60,7 +60,7 @@ def load_samples(path: Path) -> list[dict]:
     return rows
 
 
-def ensure_auth(client: httpx.Client, base_url: str, email: str, password: str) -> str:
+def ensure_auth(client: httpx.Client, base_url: str, email: str, password: str) -> None:
     register_payload = {"email": email, "password": password}
     register_response = client.post(f"{base_url}/auth/register", json=register_payload)
     if register_response.status_code not in {201, 409}:
@@ -70,20 +70,14 @@ def ensure_auth(client: httpx.Client, base_url: str, email: str, password: str) 
     if login_response.status_code != 200:
         raise RuntimeError(f"Login failed: {login_response.status_code} {login_response.text}")
 
-    token = login_response.json().get("access_token")
-    if not isinstance(token, str) or not token:
-        raise RuntimeError("Missing access_token in login response")
-    return token
 
-
-def ensure_article(client: httpx.Client, base_url: str, token: str, article_id: str, samples: list[dict]) -> str:
+def ensure_article(client: httpx.Client, base_url: str, article_id: str, samples: list[dict]) -> str:
     if article_id:
         return article_id
 
     content = "\n".join(item["sentence"] for item in samples)
     response = client.post(
         f"{base_url}/articles",
-        headers={"Authorization": f"Bearer {token}"},
         json={"title": "AI Eval Corpus", "source_type": "text", "raw_content": content},
     )
     if response.status_code != 201:
@@ -178,14 +172,13 @@ def run_eval(args: argparse.Namespace) -> dict:
     else:
         base_url = args.api_base_url.rstrip("/")
         with httpx.Client(timeout=args.timeout) as client:
-            token = ensure_auth(client, base_url, args.email, args.password)
-            article_id = ensure_article(client, base_url, token, args.article_id, samples)
+            ensure_auth(client, base_url, args.email, args.password)
+            article_id = ensure_article(client, base_url, args.article_id, samples)
 
             for sample in samples:
                 started_at = perf_counter()
                 response = client.post(
                     f"{base_url}/ai-explanations",
-                    headers={"Authorization": f"Bearer {token}"},
                     json={
                         "article_id": article_id,
                         "sentence": sample["sentence"],

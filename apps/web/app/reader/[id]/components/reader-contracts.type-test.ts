@@ -127,6 +127,7 @@ const highlightMenuProps: HighlightMenuProps = {
   onFavorite: () => undefined,
   onCopy: () => undefined,
   onAddToVocab: () => undefined,
+  onClose: () => undefined,
 };
 
 const explanationPanelProps: ExplanationPanelProps = {
@@ -138,6 +139,7 @@ const readerArticleViewProps: ReaderArticleViewProps = {
   blocks: dummyBlocks,
   highlightsByBlock: dummyHighlights,
   onTokenSelect: () => undefined,
+  onTokenActionMenu: () => undefined,
   onSelectionChange: () => undefined,
 };
 

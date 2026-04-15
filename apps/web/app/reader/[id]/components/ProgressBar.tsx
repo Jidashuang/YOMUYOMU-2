@@ -9,8 +9,20 @@ interface ProgressBarProps {
 
 export function ProgressBar({ progressPercent, onProgressChange, onSave, isSaving }: ProgressBarProps) {
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <label className="block text-sm">
+    <div className="rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+        <h3 className="font-semibold">阅读进度</h3>
+          <p className="mt-1 text-xs text-zinc-500">滚动正文会自动更新；也可以手动拖动微调后保存。</p>
+        </div>
+        <span
+          data-testid="reader-progress-current"
+          className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200"
+        >
+          {progressPercent.toFixed(0)}%
+        </span>
+      </div>
+      <label className="mt-4 block text-sm">
         阅读进度: {progressPercent.toFixed(0)}%
         <input
           type="range"

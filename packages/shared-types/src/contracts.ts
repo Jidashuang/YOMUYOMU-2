@@ -2,6 +2,7 @@ export type SourceType = "text" | "epub";
 export type ArticleStatus = "processing" | "ready" | "failed";
 export type VocabStatus = "new" | "learning" | "known";
 export type VocabReviewResult = "fail" | "pass";
+export type BillingPlan = "free" | "pro";
 
 export type JlptLevel = "N5" | "N4" | "N3" | "N2" | "N1" | "Unknown";
 
@@ -19,6 +20,18 @@ export interface HealthResponse {
 
 export interface ErrorResponse {
   detail: string;
+  code?: string;
+}
+
+export interface ValidationErrorDetail {
+  type: string;
+  loc: Array<string | number>;
+  msg: string;
+  input?: unknown;
+}
+
+export interface ValidationErrorResponse {
+  detail: ValidationErrorDetail[];
 }
 
 export interface AuthRegisterRequest {
@@ -31,9 +44,7 @@ export interface AuthLoginRequest {
   password: string;
 }
 
-export interface AuthTokenResponse {
-  access_token: string;
-  token_type: "bearer";
+export interface AuthSessionResponse {
   user: {
     id: string;
     email: string;
@@ -44,6 +55,26 @@ export interface UserProfile {
   id: string;
   email: string;
   created_at: string;
+}
+
+export interface BillingQuotaSummary {
+  used_this_month: number;
+  monthly_limit: number;
+  remaining: number;
+}
+
+export interface BillingSummaryResponse {
+  plan: BillingPlan;
+  billing_status?: string | null;
+  ai_explanations: BillingQuotaSummary;
+}
+
+export interface BillingCheckoutSessionResponse {
+  checkout_url: string;
+}
+
+export interface BillingPortalSessionResponse {
+  portal_url: string;
 }
 
 export interface ArticleCreateRequest {
@@ -137,11 +168,11 @@ export interface HighlightCreateRequest {
 export interface HighlightResponse {
   id: string;
   article_id: string;
-  block_id?: string | null;
-  start_offset_in_block?: number | null;
-  end_offset_in_block?: number | null;
+  block_id: string | null;
+  start_offset_in_block: number | null;
+  end_offset_in_block: number | null;
   text_quote: string;
-  note?: string | null;
+  note: string | null;
   created_at: string;
 }
 

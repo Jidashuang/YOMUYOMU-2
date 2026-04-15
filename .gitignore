@@ -2,6 +2,7 @@
 node_modules/
 .npm/
 .next/
+.next-playwright/
 out/
 *.tsbuildinfo
 
@@ -22,5 +23,5 @@ test-results/
 
 # OS
 .DS_Store
-
+.gstack/
 .worktrees/

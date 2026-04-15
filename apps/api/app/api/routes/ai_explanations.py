@@ -5,6 +5,7 @@ from time import perf_counter
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -19,6 +20,7 @@ from app.schemas.ai_explanation import (
     SuggestedVocabItem,
     TokenizedResultItem,
 )
+from app.schemas.auth import AuthErrorResponse
 from app.services.ai_explanation_service import (
     build_cache_key,
     extract_suggested_vocab,
@@ -29,6 +31,7 @@ from app.services.ai_explanation_service import (
     record_cache_lookup,
     save_cached_explanation,
 )
+from app.services.billing import is_ai_explanation_limit_reached
 from app.services.product_analytics import (
     EVENT_AI_EXPLANATION_FAILED,
     EVENT_AI_EXPLANATION_REQUESTED,
@@ -38,6 +41,13 @@ from app.services.product_analytics import (
 
 router = APIRouter(prefix="/ai-explanations", tags=["ai-explanations"])
 logger = logging.getLogger(__name__)
+
+CREATE_RESPONSES = {
+    status.HTTP_402_PAYMENT_REQUIRED: {
+        "model": AuthErrorResponse,
+        "description": "Monthly AI explanation limit reached for current plan",
+    },
+}
 
 
 def _validate_article_access(db: Session, article_id: UUID, user_id: UUID) -> Article:
@@ -60,17 +70,31 @@ def _validate_highlight_access(db: Session, highlight_id: UUID, article_id: UUID
     return highlight
 
 
-@router.post("", response_model=AIExplanationResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=AIExplanationResponse,
+    status_code=status.HTTP_201_CREATED,
+    responses=CREATE_RESPONSES,
+)
 def create_ai_explanation(
     payload: AIExplanationCreateRequest,
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
-) -> AIExplanationResponse:
+) -> AIExplanationResponse | JSONResponse:
     started_at = perf_counter()
     _validate_article_access(db, payload.article_id, current_user.id)
 
     if payload.highlight_id:
         _validate_highlight_access(db, payload.highlight_id, payload.article_id, current_user.id)
+
+    if is_ai_explanation_limit_reached(db, user=current_user):
+        return JSONResponse(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            content={
+                "detail": "Monthly AI explanation limit reached for current plan",
+                "code": "plan_limit_reached",
+            },
+        )
 
     record_product_event(
         db,

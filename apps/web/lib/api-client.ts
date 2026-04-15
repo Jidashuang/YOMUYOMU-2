@@ -1,3 +1,5 @@
+import type { ErrorResponse, ValidationErrorResponse } from "@yomuyomu/shared-types";
+
 import { env } from "./env";
 import { useAuthStore } from "./auth-store";
 
@@ -15,6 +17,27 @@ interface RequestOptions {
   baseUrl?: string;
 }
 
+function getErrorMessage(body: ErrorResponse | ValidationErrorResponse | null, status: number): string {
+  if (!body) {
+    return `Request failed: ${status}`;
+  }
+
+  if (typeof body.detail === "string") {
+    return body.detail;
+  }
+
+  if (Array.isArray(body.detail)) {
+    const messages = body.detail
+      .map((item) => item?.msg?.trim())
+      .filter((message): message is string => Boolean(message));
+    if (messages.length > 0) {
+      return messages.join("; ");
+    }
+  }
+
+  return `Request failed: ${status}`;
+}
+
 async function request(path: string, options: RequestOptions = {}): Promise<Response> {
   const { method = "GET", body, auth = false, baseUrl = env.apiBaseUrl } = options;
   const headers: Record<string, string> = {};
@@ -23,21 +46,22 @@ async function request(path: string, options: RequestOptions = {}): Promise<Resp
     headers["Content-Type"] = "application/json";
   }
 
-  if (auth) {
-    const token = useAuthStore.getState().accessToken;
-    if (!token) {
-      throw new UnauthorizedError("Missing auth token");
-    }
-    headers.Authorization = `Bearer ${token}`;
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      credentials: "include",
+    });
+  } catch {
+    const webOrigin = typeof window !== "undefined" ? window.location.origin : "unknown";
+    throw new Error(
+      `无法连接到服务端。当前 API：${baseUrl}。当前 Web：${webOrigin}。请确认 API 已启动；如果你把 Web 跑在新的端口，请把当前 Web 地址加入 CORS 白名单。`
+    );
   }
 
-  const response = await fetch(`${baseUrl}${path}`, {
-    method,
-    headers,
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-  });
-
-  if (response.status === 401) {
+  if (auth && response.status === 401) {
     useAuthStore.getState().clearAuth();
     throw new UnauthorizedError("Session expired");
   }
@@ -48,8 +72,8 @@ async function request(path: string, options: RequestOptions = {}): Promise<Resp
 export async function requestJson<T>(path: string, options: RequestOptions = {}): Promise<T> {
   const response = await request(path, options);
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(body?.detail ?? `Request failed: ${response.status}`);
+    const body = (await response.json().catch(() => null)) as ErrorResponse | ValidationErrorResponse | null;
+    throw new Error(getErrorMessage(body, response.status));
   }
   return (await response.json()) as T;
 }
@@ -57,12 +81,16 @@ export async function requestJson<T>(path: string, options: RequestOptions = {})
 export async function requestBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
   const response = await request(path, options);
   if (!response.ok) {
-    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
-    throw new Error(body?.detail ?? `Request failed: ${response.status}`);
+    const body = (await response.json().catch(() => null)) as ErrorResponse | ValidationErrorResponse | null;
+    throw new Error(getErrorMessage(body, response.status));
   }
   return await response.blob();
 }
 
-export function withNlpBase(options: RequestOptions = {}): RequestOptions {
-  return { ...options, baseUrl: env.nlpBaseUrl };
+export async function requestVoid(path: string, options: RequestOptions = {}): Promise<void> {
+  const response = await request(path, options);
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as ErrorResponse | ValidationErrorResponse | null;
+    throw new Error(getErrorMessage(body, response.status));
+  }
 }

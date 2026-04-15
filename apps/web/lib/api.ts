@@ -5,14 +5,16 @@ import type {
   ArticleCreateRequest,
   ArticleDetail,
   ArticleSummary,
+  AuthSessionResponse,
   AuthLoginRequest,
   AuthRegisterRequest,
-  AuthTokenResponse,
+  BillingCheckoutSessionResponse,
+  BillingPortalSessionResponse,
+  BillingSummaryResponse,
   HealthResponse,
   HighlightCreateRequest,
   HighlightNoteUpdateRequest,
   HighlightResponse,
-  LookupRequest,
   LookupResponse,
   ProductAnalyticsStatsResponse,
   TodayLearningStatsResponse,
@@ -25,32 +27,50 @@ import type {
   VocabItemCreateRequest,
   VocabItemResponse,
 } from "@yomuyomu/shared-types";
-import { requestBlob, requestJson, withNlpBase } from "./api-client";
+import { requestBlob, requestJson, requestVoid } from "./api-client";
 
-export function register(input: AuthRegisterRequest): Promise<AuthTokenResponse> {
-  return requestJson<AuthTokenResponse>("/auth/register", {
+export function register(input: AuthRegisterRequest): Promise<AuthSessionResponse> {
+  return requestJson<AuthSessionResponse>("/auth/register", {
     method: "POST",
     body: input,
   });
 }
 
-export function login(input: AuthLoginRequest): Promise<AuthTokenResponse> {
-  return requestJson<AuthTokenResponse>("/auth/login", {
+export function login(input: AuthLoginRequest): Promise<AuthSessionResponse> {
+  return requestJson<AuthSessionResponse>("/auth/login", {
     method: "POST",
     body: input,
   });
+}
+
+export function logout(): Promise<void> {
+  return requestVoid("/auth/logout", { method: "POST" });
 }
 
 export function getProfile(): Promise<UserProfile> {
   return requestJson<UserProfile>("/auth/me", { auth: true });
 }
 
-export function getApiHealth(): Promise<HealthResponse> {
-  return requestJson<HealthResponse>("/health");
+export function getBillingSummary(): Promise<BillingSummaryResponse> {
+  return requestJson<BillingSummaryResponse>("/billing/me", { auth: true });
 }
 
-export function getNlpHealth(): Promise<HealthResponse> {
-  return requestJson<HealthResponse>("/health", withNlpBase());
+export function createBillingCheckoutSession(): Promise<BillingCheckoutSessionResponse> {
+  return requestJson<BillingCheckoutSessionResponse>("/billing/checkout-session", {
+    method: "POST",
+    auth: true,
+  });
+}
+
+export function createBillingPortalSession(): Promise<BillingPortalSessionResponse> {
+  return requestJson<BillingPortalSessionResponse>("/billing/portal-session", {
+    method: "POST",
+    auth: true,
+  });
+}
+
+export function getApiHealth(): Promise<HealthResponse> {
+  return requestJson<HealthResponse>("/health");
 }
 
 export function createArticle(input: ArticleCreateRequest): Promise<ArticleDetail> {
@@ -74,13 +94,6 @@ export function deleteArticle(articleId: string): Promise<{ ok: boolean }> {
     method: "DELETE",
     auth: true,
   });
-}
-
-export function lookupWord(input: LookupRequest): Promise<LookupResponse> {
-  return requestJson<LookupResponse>("/lookup", withNlpBase({
-    method: "POST",
-    body: input,
-  }));
 }
 
 export function lookupWordInReader(input: ReaderLookupRequest): Promise<LookupResponse> {

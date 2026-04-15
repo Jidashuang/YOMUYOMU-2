@@ -75,3 +75,28 @@ export function tokenHasHighlight(
     return token.start_offset < end && token.end_offset > start;
   });
 }
+
+export function clampFloatingPosition(
+  anchorX: number,
+  anchorY: number,
+  width: number,
+  height: number,
+  gap = 8,
+  margin = 8
+): { left: number; top: number } {
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
+
+  const left = Math.min(
+    Math.max(anchorX - width / 2, margin),
+    Math.max(margin, viewportWidth - width - margin)
+  );
+
+  const preferredTop = Math.max(anchorY, margin);
+  const fitsBelow = preferredTop + height + margin <= viewportHeight;
+  const top = fitsBelow
+    ? preferredTop
+    : Math.max(margin, Math.min(anchorY - height - gap * 2, viewportHeight - height - margin));
+
+  return { left, top };
+}

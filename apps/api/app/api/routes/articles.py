@@ -7,6 +7,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db_session
+from app.core.config import get_settings
 from app.models.entities import Article, ArticleBlock, TokenOccurrence, User
 from app.schemas.article import (
     ArticleBlockResponse,
@@ -20,6 +21,13 @@ from app.services.article_processing import enqueue_article_processing, normaliz
 from app.services.product_analytics import EVENT_ARTICLE_CREATED, record_product_event
 
 router = APIRouter(prefix="/articles", tags=["articles"])
+
+
+def _validate_article_payload_size(payload: ArticleCreateRequest) -> None:
+    settings = get_settings()
+    limit = settings.article_epub_max_chars if payload.source_type == "epub" else settings.article_text_max_chars
+    if len(payload.raw_content) > limit:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail="Article payload too large")
 
 
 def _build_article_detail(db: Session, article: Article) -> ArticleDetailResponse:
@@ -81,6 +89,8 @@ def create_article(
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ) -> ArticleDetailResponse:
+    _validate_article_payload_size(payload)
+
     article = Article(
         user_id=current_user.id,
         title=payload.title,

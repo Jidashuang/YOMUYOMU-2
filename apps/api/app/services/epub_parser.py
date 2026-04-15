@@ -9,6 +9,8 @@ import zipfile
 from html.parser import HTMLParser
 from xml.etree import ElementTree as ET
 
+from app.core.config import get_settings
+
 
 _BLOCK_TAGS = {
     "article",
@@ -83,6 +85,7 @@ class _HTMLToTextParser(HTMLParser):
 
 
 def _decode_epub_payload(raw_content: str) -> bytes:
+    settings = get_settings()
     value = raw_content.strip()
     if not value:
         raise ValueError("EPUB payload is empty")
@@ -105,6 +108,8 @@ def _decode_epub_payload(raw_content: str) -> bytes:
         raise ValueError("Invalid base64 EPUB payload") from exc
     if not decoded:
         raise ValueError("EPUB payload is empty after decoding")
+    if len(decoded) > settings.article_epub_max_archive_bytes:
+        raise ValueError("EPUB archive is too large")
     return decoded
 
 
@@ -191,8 +196,21 @@ def _html_to_text(content: bytes) -> str:
 
 def extract_text_from_epub_payload(raw_content: str) -> str:
     epub_bytes = _decode_epub_payload(raw_content)
+    settings = get_settings()
     try:
         with zipfile.ZipFile(io.BytesIO(epub_bytes)) as book:
+            infos = book.infolist()
+            if len(infos) > settings.article_epub_max_file_count:
+                raise ValueError("EPUB archive contains too many files")
+
+            total_uncompressed_bytes = 0
+            for info in infos:
+                total_uncompressed_bytes += info.file_size
+                if info.file_size > settings.article_epub_max_entry_bytes:
+                    raise ValueError("EPUB entry is too large")
+                if total_uncompressed_bytes > settings.article_epub_max_archive_bytes:
+                    raise ValueError("EPUB archive is too large")
+
             opf_path = _find_opf_path(book)
             document_paths = _collect_document_paths(book, opf_path)
             blocks: list[str] = []

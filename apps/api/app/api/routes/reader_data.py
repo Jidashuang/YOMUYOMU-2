@@ -244,10 +244,7 @@ def lookup_from_reader(
         user_id=current_user.id,
         article_id=payload.article_id,
         event_name=EVENT_TOKEN_LOOKUP,
-        payload={
-            "surface": payload.surface,
-            "lemma": payload.lemma,
-        },
+        payload={"entry_count": len(parsed_entries)},
     )
     db.commit()
     return ReaderLookupResponse(entries=parsed_entries)

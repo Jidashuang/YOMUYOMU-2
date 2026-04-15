@@ -71,10 +71,7 @@ def lookup_entry(payload: LookupRequest) -> LookupResponse:
     )
     latency_ms = (perf_counter() - started_at) * 1000
     logger.info(
-        "lookup surface=%s lemma=%s reading=%s entries=%s latency_ms=%.2f",
-        payload.surface,
-        payload.lemma,
-        payload.reading or "",
+        "lookup entries=%s latency_ms=%.2f",
         len(entries),
         latency_ms,
     )

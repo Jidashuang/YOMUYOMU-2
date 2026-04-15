@@ -5,11 +5,14 @@ import io
 import uuid
 import zipfile
 
+import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
+from app.core.config import get_settings
 from app.models.entities import Article, ArticleBlock, ProductEvent, TokenOccurrence, User
 from app.services import article_processing
+from app.services.epub_parser import extract_text_from_epub_payload
 
 
 def _build_minimal_epub_payload() -> str:
@@ -114,3 +117,16 @@ def test_article_processing_supports_epub_source_type(monkeypatch) -> None:
         tokens = db.scalars(select(TokenOccurrence).where(TokenOccurrence.article_id == article_id)).all()
         assert len(blocks) >= 1
         assert len(tokens) >= 1
+
+
+def test_extract_text_from_epub_payload_rejects_oversized_archive(monkeypatch) -> None:
+    monkeypatch.setenv("ARTICLE_EPUB_MAX_ARCHIVE_BYTES", "128")
+    monkeypatch.setenv("ARTICLE_EPUB_MAX_ENTRY_BYTES", "128")
+    monkeypatch.setenv("ARTICLE_EPUB_MAX_FILE_COUNT", "2")
+    get_settings.cache_clear()
+
+    try:
+        with pytest.raises(ValueError, match="EPUB archive is too large"):
+            extract_text_from_epub_payload(_build_minimal_epub_payload())
+    finally:
+        get_settings.cache_clear()

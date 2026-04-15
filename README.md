@@ -1,10 +1,16 @@
-# Yomuyomu MVP Monorepo (Phase 6)
+# Yomuyomu MVP Monorepo (Phase 7A)
 
 Yomuyomu 是面向日语学习者的 Web SaaS 阅读器 MVP。
 
-本阶段目标：把产品从“阅读工具”推进到“学习闭环”。
+当前阶段目标：把产品从“学习闭环”推进到“可公开测试的最小商业化版本”。
 
-## Phase 6 已完成
+## 当前状态
+
+- `Phase 6` 的学习闭环主线已经完成。
+- 当前处于 `Phase 7A` 收口阶段：公开页、认证强化、最小 Stripe 支付闭环与主链路验证已落地。
+- 仍未完成的上线前事项：退款与发票口径、正式商业条款与隐私定稿，以及更完整的运营/上线细节。
+
+## 已完成能力
 
 1. 词汇增强
 - NLP lookup 返回稳定字段：`lemma`、`reading`、`pos`、`meanings`、`primary_meaning`、`jlpt_level`、`frequency_band`、`example_sentence`、`usage_note`。
@@ -32,6 +38,13 @@ Yomuyomu 是面向日语学习者的 Web SaaS 阅读器 MVP。
 5. 学习统计展示
 - 新增 `GET /analytics/today`。
 - 前端 Vocab 页展示：今日 lookup 数、vocab 添加数、AI 使用数。
+
+6. 公开测试与最小商业化基线
+- 公开站点页面已提供：`/`、`/pricing`、`/privacy`、`/terms`。
+- 认证配置已强化：`JWT_SECRET` 至少 32 字符，且 `AUTH_COOKIE_SAMESITE=none` 时强制 `AUTH_COOKIE_SECURE=true`。
+- 套餐与支付接口已提供：`GET /billing/me`、`POST /billing/checkout-session`、`POST /billing/portal-session`、`POST /billing/webhook`。
+- AI explanation 已接入免费档 / Pro 档月度额度：默认 `20 / 200`。
+- Settings 页与 Pricing 页已接上当前套餐、升级入口、订阅管理入口与支付返回态提示。
 
 ## 目录结构
 
@@ -71,6 +84,10 @@ cp apps/api/.env.example apps/api/.env
 cp services/nlp/.env.example services/nlp/.env
 ```
 
+补充：
+- 启动前必须在 `.env` 和 `apps/api/.env` 中设置一个至少 32 字符的随机 `JWT_SECRET`
+- Compose 暴露的服务默认只绑定到 `127.0.0.1`
+
 2. 准备数据库与缓存
 
 ```bash
@@ -108,7 +125,7 @@ npm run dev --workspace @yomuyomu/web -- --port 3001
 
 7. 首次登录
 - 打开 `http://localhost:3001/login`
-- 切换到“注册”，使用任意 email/password 注册（默认表单：`demo@example.com / password123`）
+- 切换到“注册”，使用任意 email 和强密码注册
 - 注册成功后自动跳转 Library
 
 如果你本机 `3000` 已被其他项目占用，请保持 `--port 3001`。
@@ -140,6 +157,7 @@ source .venv-nlp313/bin/activate && pytest -q services/nlp/tests
 source .venv-api313/bin/activate && pytest -q apps/api/tests
 npm run typecheck:web
 npm run build:web
+npx playwright test apps/web/e2e/public-pages.spec.ts apps/web/e2e/auth-errors.spec.ts apps/web/e2e/auth-live.spec.ts apps/web/e2e/reader-smoke.spec.ts --workers=1
 ```
 
 ## 真实 OpenAI 评测（可选）
@@ -155,7 +173,7 @@ python scripts/eval_ai/run_eval.py \
   --mode api \
   --api-base-url http://localhost:8000 \
   --email eval@example.com \
-  --password password123 \
+  --password strong-password-123 \
   --expect-provider openai \
   --input scripts/eval_ai/samples.jsonl \
   --output scripts/eval_ai/results/eval_results_openai.json

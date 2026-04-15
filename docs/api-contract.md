@@ -1,4 +1,4 @@
-# Yomuyomu API Contract (Phase 6)
+# Yomuyomu API Contract (Phase 7A)
 
 Contract source of truth for current MVP APIs.
 
@@ -9,11 +9,185 @@ Mirrored types:
 
 ## Common
 
-Auth header:
+Auth:
+
+- Browser sessions use a secure `HttpOnly` cookie with `SameSite=None` in the default deployment configuration.
+- Legacy/internal clients may still send `Authorization: Bearer <jwt>`.
 
 ```http
 Authorization: Bearer <jwt>
 ```
+
+Common error shape:
+
+```json
+{
+  "detail": "Email already registered",
+  "code": "email_already_registered"
+}
+```
+
+`code` is optional. Existing clients can continue using `detail`.
+This envelope is used for explicit application errors such as auth failures, conflicts, and rate limits.
+
+Validation error shape (`422 Unprocessable Entity`):
+
+```json
+{
+  "detail": [
+    {
+      "type": "value_error",
+      "loc": ["body"],
+      "msg": "Value error, Password is too weak"
+    }
+  ]
+}
+```
+
+## Auth
+
+### POST `/auth/register`
+
+Current MVP behavior:
+- creates the user
+- immediately establishes a cookie-backed session
+- returns the authenticated user envelope
+
+Request:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "strong-password-123"
+}
+```
+
+Validation rules:
+- `email`: trimmed and lowercased before duplicate check and persistence
+- `password`: `8-128` chars
+- `password` must not be all whitespace
+- `password` must not equal normalized email
+- a small set of obvious weak passwords is rejected
+
+Success response `201 Created`:
+
+```json
+{
+  "user": {
+    "id": "uuid",
+    "email": "user@example.com"
+  }
+}
+```
+
+Error responses:
+- `409` with `code=email_already_registered`
+- `422` for schema / validation failures
+- `429` with `code=rate_limited`
+
+Concurrency rule:
+- duplicate-email race conditions are resolved at the DB unique-constraint boundary and mapped to `409`
+
+### POST `/auth/login`
+
+Request:
+
+```json
+{
+  "email": "user@example.com",
+  "password": "strong-password-123"
+}
+```
+
+Behavior:
+- `email` is trimmed and lowercased before lookup
+- request validation still uses the same `EmailStr` and `password 8-128` rules as register
+- success returns the same session envelope as register
+- invalid credentials return `401` with `code=invalid_credentials`
+- malformed payloads return standard FastAPI `422` validation responses
+- repeated failures return `429` with `code=rate_limited`
+
+### GET `/auth/me`
+
+Returns the active user profile when the session cookie or bearer token is valid.
+
+### POST `/auth/logout`
+
+Clears the session cookie and returns `204 No Content`.
+
+## Billing
+
+### GET `/billing/me`
+
+Returns the current commercialization summary for the authenticated user.
+
+Response:
+
+```json
+{
+  "plan": "free",
+  "billing_status": null,
+  "ai_explanations": {
+    "used_this_month": 3,
+    "monthly_limit": 20,
+    "remaining": 17
+  }
+}
+```
+
+Notes:
+- `plan` currently only has `free | pro`
+- `billing_status` mirrors the latest synced Stripe subscription status when available, otherwise `null`
+
+### POST `/billing/checkout-session`
+
+Creates a Stripe Checkout session for the authenticated user.
+
+Response:
+
+```json
+{
+  "checkout_url": "https://checkout.stripe.com/c/pay/cs_test_123"
+}
+```
+
+Behavior:
+- always creates the `pro` subscription checkout flow
+- binds Stripe metadata to the authenticated `user_id`
+- returns `503` if Stripe credentials are not configured
+
+### POST `/billing/portal-session`
+
+Creates a Stripe billing portal session for the authenticated user.
+
+Response:
+
+```json
+{
+  "portal_url": "https://billing.stripe.com/p/session/test_123"
+}
+```
+
+Behavior:
+- requires the current user to already have a `stripe_customer_id`
+- returns `409` when there is no linked Stripe customer yet
+- current implementation delegates subscription management to Stripe Billing Portal rather than a first-party settings workflow
+
+### POST `/billing/webhook`
+
+Receives Stripe subscription webhooks and updates the user billing state.
+
+Current handled events:
+- `customer.subscription.updated`
+- `customer.subscription.deleted`
+
+Side effects:
+- writes `plan`, `stripe_customer_id`, `stripe_subscription_id`, and `billing_status` onto `users`
+- downgrade events reset `plan` to `free` and clear `stripe_subscription_id`
+
+Out of current billing API scope:
+- first-party refund management
+- first-party invoice history APIs
 
 ## Articles
 
@@ -22,12 +196,14 @@ Authorization: Bearer <jwt>
 - Enqueues async processing.
 - Emits event: `article_created`.
 - Supports `source_type=text|epub`.
+- Rejects oversized raw payloads with `413`.
 - For `source_type=epub`, `raw_content` accepts base64 payload:
   - `base64:<payload>`
   - `data:application/epub+zip;base64,<payload>`
 
 ### Processing lifecycle
 - Background worker parses source content (text normalization or epub extraction), then persists blocks/tokens.
+- EPUB parsing enforces archive byte, per-entry byte, and file-count limits.
 - Emits event: `article_processed` with payload status `ready|failed`.
 
 ### GET `/articles`
@@ -155,6 +331,9 @@ Response includes:
 `response_json` is strictly structured and now also includes:
 - `why_this_expression`
 - `alternative_expressions` (list of `{jp, zh, note}`)
+
+Commercialization rule:
+- if the user's current monthly AI explanation quota is exhausted, the endpoint returns `402` with `code=plan_limit_reached`
 
 ### GET `/ai-explanations?article_id={id}`
 

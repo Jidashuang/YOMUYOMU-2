@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-yomuyomu}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yomuyomu}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -20,7 +20,7 @@ services:
     image: redis:7-alpine
     container_name: yomuyomu-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - redis_data:/data
     healthcheck:
@@ -37,13 +37,13 @@ services:
     environment:
       APP_NAME: Yomuyomu API
       APP_VERSION: 0.1.0
-      API_CORS_ORIGINS: http://localhost:3000
+      API_CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-yomuyomu}:${POSTGRES_PASSWORD:-yomuyomu}@postgres:5432/${POSTGRES_DB:-yomuyomu}
       REDIS_URL: redis://redis:6379/0
       NLP_SERVICE_URL: http://nlp:8001
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_SECRET: ${JWT_SECRET}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
-      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-10080}
+      JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-30}
       LLM_PROVIDER: ${LLM_PROVIDER:-openai}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4.1-mini}
@@ -57,7 +57,7 @@ services:
       redis:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
 
   nlp:
     build:
@@ -67,14 +67,14 @@ services:
     environment:
       APP_NAME: Yomuyomu NLP
       APP_VERSION: 0.1.0
-      API_CORS_ORIGINS: http://localhost:3000
+      API_CORS_ORIGINS: http://localhost:3000,http://127.0.0.1:3000
       JLPT_MAP_PATH: /app/services/nlp/data/jlpt_sample.csv
       FREQUENCY_MAP_PATH: /app/services/nlp/data/frequency_sample.csv
       JMDICT_DB_PATH: /app/services/nlp/data/jmdict.sqlite
       LOOKUP_SEED_PATH: /app/services/nlp/data/lookup_seed.json
       ALLOW_SEED_FALLBACK: false
-    ports:
-      - "8001:8001"
+    expose:
+      - "8001"
 
   web:
     build:
@@ -83,12 +83,11 @@ services:
     container_name: yomuyomu-web
     environment:
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
-      NEXT_PUBLIC_NLP_BASE_URL: http://localhost:8001
     depends_on:
       - api
       - nlp
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
 
 volumes:
   postgres_data:

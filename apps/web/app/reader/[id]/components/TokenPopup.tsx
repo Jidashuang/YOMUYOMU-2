@@ -1,7 +1,9 @@
 "use client";
 
+import { useEffect, useId, useRef, useState } from "react";
 import type { LookupEntry } from "@yomuyomu/shared-types";
 
+import { clampFloatingPosition } from "./reader-utils";
 import type { SelectedTokenState } from "./types";
 
 interface TokenPopupProps {
@@ -21,6 +23,61 @@ export function TokenPopup({
   onClose,
   onAddToVocab,
 }: TokenPopupProps) {
+  const titleId = useId();
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const popupRef = useRef<HTMLDivElement | null>(null);
+  const [position, setPosition] = useState<{ left: number; top: number } | null>(null);
+
+  useEffect(() => {
+    if (selectedToken) {
+      closeButtonRef.current?.focus();
+    }
+  }, [selectedToken]);
+
+  useEffect(() => {
+    if (!selectedToken || !popupRef.current) {
+      setPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const rect = popupRef.current?.getBoundingClientRect();
+      if (!rect) {
+        return;
+      }
+      setPosition(clampFloatingPosition(selectedToken.x, selectedToken.y, rect.width, rect.height));
+    };
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [selectedToken]);
+
+  useEffect(() => {
+    if (!selectedToken) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (popupRef.current && !popupRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    };
+
+    const handleScroll = () => {
+      onClose();
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [onClose, selectedToken]);
+
   if (!selectedToken) {
     return null;
   }
@@ -29,13 +86,24 @@ export function TokenPopup({
 
   return (
     <div
+      ref={popupRef}
+      role="dialog"
+      aria-modal="false"
+      aria-labelledby={titleId}
       data-testid="token-popup"
-      className="fixed z-20 w-[320px] max-w-[calc(100vw-16px)] -translate-x-1/2 rounded-xl border border-zinc-200 bg-white p-4 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
-      style={{ left: selectedToken.x, top: selectedToken.y }}
+      tabIndex={-1}
+      className="fixed z-20 w-[320px] max-w-[calc(100vw-16px)] rounded-xl border border-zinc-200 bg-white p-4 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+      style={{ left: position?.left ?? selectedToken.x, top: position?.top ?? selectedToken.y }}
+      onKeyDown={(event) => {
+        if (event.key === "Escape") {
+          event.preventDefault();
+          onClose();
+        }
+      }}
     >
       <div className="flex items-start justify-between">
-        <h3 className="font-semibold">单词详情</h3>
-        <button className="text-sm text-zinc-500" onClick={onClose}>
+        <h3 id={titleId} className="font-semibold">单词详情</h3>
+        <button ref={closeButtonRef} type="button" className="text-sm text-zinc-500" aria-label="关闭单词详情" onClick={onClose}>
           关闭
         </button>
       </div>

@@ -25,6 +25,10 @@ export default function LibraryPage() {
   const [rawContent, setRawContent] = useState("彼は来るはずだったのに。\n今日は雨が降っている。\n明日は晴れるだろう。");
   const [epubPayload, setEpubPayload] = useState("");
   const [epubFileName, setEpubFileName] = useState("");
+  const sourceOptions: Array<{ value: SourceType; label: string; description: string }> = [
+    { value: "text", label: "文本", description: "粘贴文章、短文或练习材料，马上进入处理流程。" },
+    { value: "epub", label: "EPUB", description: "上传电子书文件，系统会自动提取正文后继续处理。" },
+  ];
 
   const articlesQuery = useQuery({
     queryKey: ["articles"],
@@ -66,8 +70,8 @@ export default function LibraryPage() {
   if (!isAuthorized) {
     return (
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold">Library</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">请先登录后再创建和查看文章。</p>
+        <h1 className="text-2xl font-semibold">导入与书库</h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">请先登录后再导入和查看文章。</p>
         <Link href="/login" className="inline-flex rounded-md bg-brand-500 px-4 py-2 text-white hover:bg-brand-700">
           去登录
         </Link>
@@ -78,14 +82,19 @@ export default function LibraryPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold">Library</h1>
+        <h1 className="text-2xl font-semibold">导入与书库</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-300">
-          文章创建后进入异步处理流：<code>processing -&gt; ready/failed</code>。
+          先导入文本或 EPUB，再在下方继续管理已经处理过的内容。
         </p>
       </header>
 
       <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="font-medium">创建文章</h2>
+        <div className="space-y-2">
+          <h2 className="font-medium">导入内容</h2>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+            新内容会进入异步处理流：<code>processing -&gt; ready/failed</code>。
+          </p>
+        </div>
         <form
           className="mt-4 space-y-4"
           onSubmit={(event) => {
@@ -93,17 +102,26 @@ export default function LibraryPage() {
             createMutation.mutate();
           }}
         >
-          <label className="block text-sm">
-            来源
-            <select
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
-              value={sourceType}
-              onChange={(event) => setSourceType(event.target.value as SourceType)}
-            >
-              <option value="text">text</option>
-              <option value="epub">epub</option>
-            </select>
-          </label>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">导入方式</p>
+            <div className="flex flex-wrap gap-3">
+              {sourceOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  className={`rounded-full border px-4 py-2 text-sm font-medium transition ${
+                    sourceType === option.value
+                      ? "border-zinc-950 bg-zinc-950 text-white"
+                      : "border-zinc-300 text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  }`}
+                  onClick={() => setSourceType(option.value)}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            <p className="text-xs text-zinc-500">{sourceOptions.find((option) => option.value === sourceType)?.description}</p>
+          </div>
 
           <label className="block text-sm">
             标题
@@ -118,7 +136,7 @@ export default function LibraryPage() {
 
           {sourceType === "text" ? (
             <label className="block text-sm">
-              正文
+              文本内容
               <textarea
                 data-testid="create-article-content"
                 className="mt-1 min-h-[160px] w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
@@ -128,32 +146,34 @@ export default function LibraryPage() {
               />
             </label>
           ) : (
-            <label className="block text-sm">
-              EPUB 文件
-              <input
-                className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700"
-                type="file"
-                accept=".epub,application/epub+zip"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (!file) {
-                    setEpubPayload("");
-                    setEpubFileName("");
-                    return;
-                  }
-                  setEpubFileName(file.name);
-                  const reader = new FileReader();
-                  reader.onload = () => {
-                    if (typeof reader.result === "string") {
-                      setEpubPayload(reader.result);
+            <div className="space-y-2">
+              <label className="block text-sm">
+                EPUB 文件
+                <input
+                  className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700"
+                  type="file"
+                  accept=".epub,application/epub+zip"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    if (!file) {
+                      setEpubPayload("");
+                      setEpubFileName("");
+                      return;
                     }
-                  };
-                  reader.readAsDataURL(file);
-                }}
-                required
-              />
-              {epubFileName ? <p className="mt-1 text-xs text-zinc-500">已选择：{epubFileName}</p> : null}
-            </label>
+                    setEpubFileName(file.name);
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      if (typeof reader.result === "string") {
+                        setEpubPayload(reader.result);
+                      }
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                  required
+                />
+              </label>
+              {epubFileName ? <p className="text-xs text-zinc-500">已选择：{epubFileName}</p> : null}
+            </div>
           )}
 
           {createMutation.isError ? <p className="text-sm text-red-600">{(createMutation.error as Error).message}</p> : null}
@@ -164,13 +184,13 @@ export default function LibraryPage() {
             className="rounded-md bg-brand-500 px-4 py-2 text-white hover:bg-brand-700 disabled:opacity-60"
             disabled={createMutation.isPending || (sourceType === "epub" && !epubPayload)}
           >
-            {createMutation.isPending ? "创建中..." : "创建文章"}
+            {createMutation.isPending ? "导入中..." : "开始导入"}
           </button>
         </form>
       </div>
 
       <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="font-medium">我的文章</h2>
+        <h2 className="font-medium">已导入内容</h2>
         <div className="mt-4 space-y-3">
           {articlesQuery.isLoading ? <p className="text-sm">加载中...</p> : null}
           {articlesQuery.isError ? <p className="text-sm text-red-600">{(articlesQuery.error as Error).message}</p> : null}
@@ -203,7 +223,7 @@ export default function LibraryPage() {
             </div>
           ))}
 
-          {articlesQuery.data?.length === 0 ? <p className="text-sm text-zinc-500">还没有文章，先创建一篇。</p> : null}
+          {articlesQuery.data?.length === 0 ? <p className="text-sm text-zinc-500">还没有内容，先从上面导入一篇。</p> : null}
         </div>
       </div>
     </section>

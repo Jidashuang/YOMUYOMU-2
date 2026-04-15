@@ -38,7 +38,7 @@ python scripts/eval_ai/run_eval.py \
   --mode api \
   --api-base-url http://localhost:8000 \
   --email eval@example.com \
-  --password password123 \
+  --password strong-password-123 \
   --expect-provider openai \
   --input scripts/eval_ai/samples.jsonl \
   --output scripts/eval_ai/results/eval_results_openai.json
