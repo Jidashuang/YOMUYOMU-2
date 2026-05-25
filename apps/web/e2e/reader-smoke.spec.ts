@@ -177,6 +177,17 @@ test("reader critical flow smoke", async ({ page }) => {
         },
         tokenized_result: [],
         dictionary_hints: [],
+        suggested_vocab: [
+          {
+            surface: "はず",
+            lemma: "はず",
+            reading: "はず",
+            pos: "noun",
+            meaning: "按理；预期",
+            jlpt_level: "N3",
+            frequency_band: "top-10k",
+          },
+        ],
         created_at: "2026-03-17T00:00:00Z",
       };
       aiHistory = [created, ...aiHistory];
@@ -222,7 +233,8 @@ test("reader critical flow smoke", async ({ page }) => {
 
   await page.locator("[data-testid='reader-token']", { hasText: "来る" }).first().click();
   await expect(page.getByTestId("token-popup")).toBeVisible();
-  await expect(page.getByTestId("token-popup")).toContainText("primary_meaning");
+  await expect(page.getByTestId("token-popup-meaning")).toContainText("to come");
+  await expect(page.getByTestId("token-popup")).toContainText("加入生词本");
   await page
     .getByTestId("token-popup-add-vocab")
     .evaluate((element) => (element as HTMLButtonElement).click());
@@ -247,11 +259,12 @@ test("reader critical flow smoke", async ({ page }) => {
   await page.getByTestId("highlight-menu-ai").click();
 
   await expect(page.getByTestId("explanation-panel")).toBeVisible();
-  await expect(page.getByTestId("explanation-translation")).toContainText("translation_zh");
-  await expect(page.getByTestId("explanation-literal")).toContainText("literal_translation");
+  await expect(page.getByTestId("explanation-translation")).toContainText("他本该来的");
+  await expect(page.getByTestId("explanation-literal")).toContainText("来 应该");
   await expect(page.getByTestId("explanation-grammar-points")).toBeVisible();
   await expect(page.getByTestId("explanation-token-breakdown")).toBeVisible();
   await expect(page.getByTestId("explanation-examples")).toBeVisible();
+  await expect(page.getByTestId("suggested-vocab-list")).toContainText("加入生词本");
 
   await page.evaluate(() => {
     const tokens = Array.from(document.querySelectorAll<HTMLElement>("[data-testid='reader-token']"));

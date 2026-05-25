@@ -10,9 +10,15 @@ export function TopNav() {
     <header className="border-b border-zinc-200 bg-white/85 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/85">
       <nav className="mx-auto flex w-full max-w-6xl items-center justify-between px-4 py-3">
         <div className="flex items-center gap-4 text-sm font-medium text-zinc-700 dark:text-zinc-200">
-          <Link href="/">Yomuyomu</Link>
+          <Link href="/" data-testid="top-nav-home" className="font-semibold">
+            Yomuyomu
+            <span className="ml-1 hidden align-middle text-[10px] font-normal uppercase tracking-wider text-zinc-500 sm:inline">
+              beta
+            </span>
+          </Link>
           <Link href="/library">Library</Link>
           <Link href="/vocab">Vocab</Link>
+          <Link href="/pricing" data-testid="top-nav-pricing">Pricing</Link>
           <Link href="/settings">Settings</Link>
         </div>
         <div className="flex items-center gap-3 text-sm text-zinc-600 dark:text-zinc-300">

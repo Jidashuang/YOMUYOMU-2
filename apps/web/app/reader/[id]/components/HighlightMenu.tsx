@@ -39,7 +39,7 @@ export function HighlightMenu({
           onClick={onRequestAi}
           disabled={isAiPending}
         >
-          {isAiPending ? "解释中..." : "AI解释"}
+          {isAiPending ? "解释中..." : "让 AI 用中文解释这句"}
         </button>
         <button data-testid="highlight-menu-favorite" className="rounded border px-2 py-1" onClick={onFavorite}>加入收藏</button>
         <button data-testid="highlight-menu-copy" className="rounded border px-2 py-1" onClick={onCopy}>复制</button>

@@ -16,6 +16,7 @@ from app.schemas.vocab import (
     VocabReviewRequest,
     VocabStatusUpdateRequest,
 )
+from app.services.product_analytics import EVENT_VOCAB_REVIEWED, record_product_event
 from app.services.vocab_export import export_vocab_csv, export_vocab_json
 from app.services.vocab_service import apply_review_result, apply_status_schedule, create_vocab_item
 
@@ -124,6 +125,19 @@ def review_vocab(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vocab item not found")
 
     apply_review_result(row, payload.result)
+    record_product_event(
+        db,
+        user_id=current_user.id,
+        article_id=row.source_article_id,
+        event_name=EVENT_VOCAB_REVIEWED,
+        payload={
+            "vocab_id": str(row.id),
+            "lemma": row.lemma,
+            "result": payload.result,
+            "review_count": row.review_count,
+            "status": row.status,
+        },
+    )
     db.commit()
     db.refresh(row)
     return _to_response(row)

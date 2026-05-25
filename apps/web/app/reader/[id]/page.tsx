@@ -227,9 +227,9 @@ export default function ReaderPage() {
   return (
     <section className="relative space-y-4">
       <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">Reader</h1>
+        <h1 className="text-2xl font-semibold">阅读这一段</h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-300">
-          单一阅读视图：点词、划线、高亮回显、AI解释在同一正文内完成。
+          核心动作：读完它 → 卡住时点词或选句让 AI 用中文解释 → 把对你有用的词加进生词本。
         </p>
       </header>
 
@@ -267,7 +267,8 @@ export default function ReaderPage() {
       {selectionError ? <p className="text-xs text-red-600">{selectionError}</p> : null}
 
       <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <h3 className="font-semibold">已保存高亮</h3>
+        <h3 className="font-semibold">已收藏的句子</h3>
+        <p className="mt-1 text-xs text-zinc-500">划线后选「加入收藏」会把整句存到这里，方便复看。</p>
         <div data-testid="highlight-list" className="mt-3 space-y-3">
           {highlightsQuery.data?.map((item) => (
             <div data-testid="highlight-item" key={item.id} className="rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
@@ -286,7 +287,7 @@ export default function ReaderPage() {
             </div>
           ))}
           {highlightsQuery.data && highlightsQuery.data.length === 0 ? (
-            <p className="text-sm text-zinc-500">还没有高亮。</p>
+            <p className="text-sm text-zinc-500">还没有收藏的句子。</p>
           ) : null}
         </div>
       </div>

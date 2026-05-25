@@ -333,7 +333,8 @@ export type ProductEventName =
   | "highlight_created"
   | "ai_explanation_requested"
   | "ai_explanation_succeeded"
-  | "ai_explanation_failed";
+  | "ai_explanation_failed"
+  | "vocab_reviewed";
 
 export interface UsageCounts {
   lookup_count: number;

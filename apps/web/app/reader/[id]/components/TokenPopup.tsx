@@ -26,69 +26,102 @@ export function TokenPopup({
   }
 
   const firstEntry = lookupEntries[0];
+  const reading = firstEntry?.reading || selectedToken.token.reading || selectedToken.token.surface;
+  const moreMeanings = firstEntry?.meanings?.slice(1) ?? [];
+  const partsOfSpeech = firstEntry?.pos?.join("、") || selectedToken.token.pos;
+  const jlpt = firstEntry?.jlpt_level ?? selectedToken.token.jlpt_level;
+  const frequency = firstEntry?.frequency_band ?? selectedToken.token.frequency_band;
 
   return (
     <div
       data-testid="token-popup"
-      className="fixed z-20 w-[320px] max-w-[calc(100vw-16px)] -translate-x-1/2 rounded-xl border border-zinc-200 bg-white p-4 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
+      className="fixed z-20 w-[340px] max-w-[calc(100vw-16px)] -translate-x-1/2 rounded-xl border border-zinc-200 bg-white p-4 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
       style={{ left: selectedToken.x, top: selectedToken.y }}
     >
-      <div className="flex items-start justify-between">
-        <h3 className="font-semibold">单词详情</h3>
-        <button className="text-sm text-zinc-500" onClick={onClose}>
+      <div className="flex items-baseline justify-between gap-3">
+        <div>
+          <p className="text-lg font-semibold leading-tight">{selectedToken.token.surface}</p>
+          <p className="text-xs text-zinc-500">
+            {reading}
+            {selectedToken.token.lemma && selectedToken.token.lemma !== selectedToken.token.surface
+              ? ` · 词典形 ${selectedToken.token.lemma}`
+              : ""}
+          </p>
+        </div>
+        <button className="text-xs text-zinc-500" onClick={onClose} aria-label="关闭">
           关闭
         </button>
       </div>
 
-      <dl className="mt-3 space-y-2 text-sm">
-        <div className="grid grid-cols-[96px_1fr] gap-2"><dt className="text-zinc-500">surface</dt><dd>{selectedToken.token.surface}</dd></div>
-        <div className="grid grid-cols-[96px_1fr] gap-2"><dt className="text-zinc-500">lemma</dt><dd>{selectedToken.token.lemma}</dd></div>
-        <div className="grid grid-cols-[96px_1fr] gap-2"><dt className="text-zinc-500">reading</dt><dd>{selectedToken.token.reading}</dd></div>
-        <div className="grid grid-cols-[96px_1fr] gap-2"><dt className="text-zinc-500">pos</dt><dd>{isLookupLoading ? selectedToken.token.pos : firstEntry?.pos?.join(", ") || selectedToken.token.pos}</dd></div>
-        <div className="grid grid-cols-[96px_1fr] gap-2">
-          <dt className="text-zinc-500">primary_meaning</dt>
-          <dd className="font-medium">{isLookupLoading ? "查询中..." : firstEntry?.primary_meaning ?? "No meaning found"}</dd>
-        </div>
-        <div className="grid grid-cols-[96px_1fr] gap-2">
-          <dt className="text-zinc-500">usage</dt>
-          <dd>{isLookupLoading ? "-" : firstEntry?.usage_note || "No usage note"}</dd>
-        </div>
-        <div className="grid grid-cols-[96px_1fr] gap-2">
-          <dt className="text-zinc-500">example</dt>
-          <dd>{isLookupLoading ? "-" : firstEntry?.example_sentence || "No example sentence"}</dd>
-        </div>
-        <div className="grid grid-cols-[96px_1fr] gap-2">
-          <dt className="text-zinc-500">more_meanings</dt>
-          <dd>{isLookupLoading ? "-" : (firstEntry?.meanings?.slice(1).join("; ") || "None")}</dd>
-        </div>
-        <div className="grid grid-cols-[96px_1fr] gap-2"><dt className="text-zinc-500">jlpt_level</dt><dd>{firstEntry?.jlpt_level ?? selectedToken.token.jlpt_level}</dd></div>
-        <div className="grid grid-cols-[96px_1fr] gap-2"><dt className="text-zinc-500">frequency_band</dt><dd>{firstEntry?.frequency_band ?? selectedToken.token.frequency_band}</dd></div>
-      </dl>
+      <div className="mt-3 rounded-md bg-zinc-50 p-3 dark:bg-zinc-800/40">
+        <p className="text-xs font-medium text-zinc-500">中文意思</p>
+        <p data-testid="token-popup-meaning" className="mt-1 text-base font-medium">
+          {isLookupLoading ? "查询中..." : firstEntry?.primary_meaning || "未找到释义"}
+        </p>
+        {moreMeanings.length > 0 ? (
+          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
+            其他释义：{moreMeanings.slice(0, 3).join("；")}
+          </p>
+        ) : null}
+      </div>
 
-      <div className="mt-3 rounded-md border border-zinc-200 p-2 dark:border-zinc-700">
-        <p className="text-xs font-medium text-zinc-600 dark:text-zinc-300">更多义项（按匹配度排序）</p>
-        <div className="mt-1 space-y-1 text-xs">
-          {lookupEntries.slice(1, 6).map((entry, index) => (
-            <div key={index}>
-              <p>{entry.primary_meaning} · {entry.reading} · {entry.pos.join(", ")}</p>
-              <p className="text-zinc-500">{entry.usage_note}</p>
-            </div>
-          ))}
-          {lookupEntries.length <= 1 ? <p>无</p> : null}
+      <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-zinc-500">
+        <div>
+          <p>词性</p>
+          <p className="mt-0.5 font-medium text-zinc-700 dark:text-zinc-200">{partsOfSpeech}</p>
+        </div>
+        <div>
+          <p>JLPT</p>
+          <p className="mt-0.5 font-medium text-zinc-700 dark:text-zinc-200">{jlpt}</p>
+        </div>
+        <div>
+          <p>频度</p>
+          <p className="mt-0.5 font-medium text-zinc-700 dark:text-zinc-200">{frequency}</p>
         </div>
       </div>
 
-      <div className="mt-4 flex justify-end">
-        <button
-          type="button"
-          data-testid="token-popup-add-vocab"
-          className="rounded-md bg-brand-500 px-3 py-1.5 text-sm text-white hover:bg-brand-700"
-          onClick={onAddToVocab}
-          disabled={isSavingVocab}
-        >
-          {isSavingVocab ? "saving..." : "add_to_vocab"}
-        </button>
-      </div>
+      {firstEntry?.example_sentence ? (
+        <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-300">
+          <span className="font-medium">例：</span>
+          {firstEntry.example_sentence}
+        </p>
+      ) : null}
+      {firstEntry?.usage_note ? (
+        <p className="mt-1 text-xs text-zinc-500">
+          <span className="font-medium">用法：</span>
+          {firstEntry.usage_note}
+        </p>
+      ) : null}
+
+      <button
+        type="button"
+        data-testid="token-popup-add-vocab"
+        className="mt-4 w-full rounded-md bg-brand-500 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
+        onClick={onAddToVocab}
+        disabled={isSavingVocab}
+      >
+        {isSavingVocab ? "加入中..." : "加入生词本"}
+      </button>
+      <p className="mt-1 text-center text-[11px] text-zinc-400">
+        加入后会出现在 Vocab 的「到期复习」里
+      </p>
+
+      {lookupEntries.length > 1 ? (
+        <details className="mt-3 text-xs text-zinc-500">
+          <summary className="cursor-pointer">更多义项（{lookupEntries.length - 1}）</summary>
+          <div className="mt-2 space-y-1">
+            {lookupEntries.slice(1, 6).map((entry, index) => (
+              <div key={index} className="rounded border border-zinc-200 p-2 dark:border-zinc-700">
+                <p className="text-zinc-700 dark:text-zinc-200">
+                  {entry.primary_meaning}
+                  <span className="text-zinc-500"> · {entry.reading} · {entry.pos.join("、")}</span>
+                </p>
+                {entry.usage_note ? <p>{entry.usage_note}</p> : null}
+              </div>
+            ))}
+          </div>
+        </details>
+      ) : null}
     </div>
   );
 }

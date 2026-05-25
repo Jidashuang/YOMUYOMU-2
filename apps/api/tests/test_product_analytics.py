@@ -3,10 +3,12 @@ from __future__ import annotations
 import uuid
 
 from app.services.product_analytics import (
+    ALL_EVENT_NAMES,
     EVENT_AI_EXPLANATION_REQUESTED,
     EVENT_HIGHLIGHT_CREATED,
     EVENT_TOKEN_LOOKUP,
     EVENT_VOCAB_ADDED,
+    EVENT_VOCAB_REVIEWED,
     compute_business_metrics,
     get_event_counts,
     get_event_counts_by_article,
@@ -117,3 +119,28 @@ def test_get_usage_stats_in_range() -> None:
     assert raw_counts[EVENT_TOKEN_LOOKUP] == 3
     assert usage.lookup_count == 3
     assert usage.vocab_added_count == 1
+
+
+
+def test_vocab_reviewed_event_is_registered() -> None:
+    """Validation analytics depend on vocab_reviewed being a known event."""
+    assert EVENT_VOCAB_REVIEWED == "vocab_reviewed"
+    assert EVENT_VOCAB_REVIEWED in ALL_EVENT_NAMES
+
+
+def test_record_vocab_reviewed_event() -> None:
+    db = _FakeSession()
+    user_id = uuid.uuid4()
+    article_id = uuid.uuid4()
+
+    row = record_product_event(
+        db,
+        user_id=user_id,
+        article_id=article_id,
+        event_name=EVENT_VOCAB_REVIEWED,
+        payload={"result": "pass", "review_count": 2, "status": "learning"},
+    )
+
+    assert len(db.added) == 1
+    assert row.event_name == EVENT_VOCAB_REVIEWED
+    assert row.payload["result"] == "pass"
