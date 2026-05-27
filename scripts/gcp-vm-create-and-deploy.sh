@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}"
+ZONE="${ZONE:-us-west1-b}"
+INSTANCE_NAME="${INSTANCE_NAME:-yomuyomu-vm}"
+MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
+BOOT_DISK_SIZE="${BOOT_DISK_SIZE:-30GB}"
+FIREWALL_RULE="${FIREWALL_RULE:-yomuyomu-allow-http-https}"
+NETWORK_TAG="${NETWORK_TAG:-yomuyomu-web}"
+REPO_URL="${REPO_URL:-https://github.com/Jidashuang/YOMUYOMU-2.git}"
+BRANCH="${BRANCH:-$(git branch --show-current 2>/dev/null || echo main)}"
+
+if [ -z "$PROJECT_ID" ]; then
+  echo "Set PROJECT_ID or run: gcloud config set project YOUR_PROJECT_ID" >&2
+  exit 1
+fi
+
+if ! command -v gcloud >/dev/null 2>&1; then
+  echo "gcloud is required. Run this from Google Cloud Shell or install Google Cloud SDK." >&2
+  exit 1
+fi
+
+if [ ! -f scripts/gcp-vm-bootstrap.sh ]; then
+  echo "Run this script from the repository root." >&2
+  exit 1
+fi
+
+gcloud config set project "$PROJECT_ID"
+gcloud config set compute/zone "$ZONE"
+gcloud services enable compute.googleapis.com
+
+if ! gcloud compute firewall-rules describe "$FIREWALL_RULE" >/dev/null 2>&1; then
+  gcloud compute firewall-rules create "$FIREWALL_RULE" \
+    --allow tcp:80,tcp:443 \
+    --target-tags "$NETWORK_TAG" \
+    --description "Allow HTTP and HTTPS for Yomuyomu"
+fi
+
+if ! gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" >/dev/null 2>&1; then
+  gcloud compute instances create "$INSTANCE_NAME" \
+    --zone "$ZONE" \
+    --machine-type "$MACHINE_TYPE" \
+    --image-family ubuntu-2404-lts-amd64 \
+    --image-project ubuntu-os-cloud \
+    --boot-disk-size "$BOOT_DISK_SIZE" \
+    --boot-disk-type pd-standard \
+    --tags "$NETWORK_TAG" \
+    --metadata-from-file startup-script=scripts/gcp-vm-bootstrap.sh
+fi
+
+echo "Waiting for VM startup script..."
+gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "cloud-init status --wait || true"
+
+EXTERNAL_IP="$(gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
+REMOTE_SCRIPT="$(mktemp)"
+
+cat > "$REMOTE_SCRIPT" <<REMOTE
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ ! -d "\$HOME/yomuyomu/.git" ]; then
+  git clone "$REPO_URL" "\$HOME/yomuyomu"
+fi
+
+cd "\$HOME/yomuyomu"
+git fetch origin
+git switch "$BRANCH" 2>/dev/null || git switch -c "$BRANCH" "origin/$BRANCH"
+git pull --ff-only origin "$BRANCH"
+
+if [ ! -f .env.gcp-vm ]; then
+  POSTGRES_PASSWORD="\$(openssl rand -base64 32 | tr -d '\n')"
+  JWT_SECRET="\$(openssl rand -base64 32 | tr -d '\n')"
+  cat > .env.gcp-vm <<ENV
+POSTGRES_DB=yomuyomu
+POSTGRES_USER=yomuyomu
+POSTGRES_PASSWORD=\$POSTGRES_PASSWORD
+
+JWT_SECRET=\$JWT_SECRET
+JWT_ALGORITHM=HS256
+JWT_EXPIRE_MINUTES=10080
+
+LLM_PROVIDER=openai
+OPENAI_API_KEY=${OPENAI_API_KEY:-}
+OPENAI_MODEL=gpt-4.1-mini
+OPENAI_TIMEOUT_SECONDS=30
+OPENAI_MAX_RETRIES=2
+AI_PROMPT_VERSION=v2
+AI_CACHE_TTL_SECONDS=86400
+
+YOMUYOMU_SITE_ADDRESS=:80
+WEB_ORIGIN=http://$EXTERNAL_IP
+NEXT_PUBLIC_API_BASE_URL=/api
+NEXT_PUBLIC_NLP_BASE_URL=/nlp
+ALLOW_SEED_FALLBACK=true
+ENV
+fi
+
+sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml up -d --build
+sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml ps
+curl -f http://localhost/api/health
+curl -f http://localhost/nlp/health
+REMOTE
+
+chmod +x "$REMOTE_SCRIPT"
+gcloud compute scp "$REMOTE_SCRIPT" "$INSTANCE_NAME:/tmp/yomuyomu-vm-deploy.sh" --zone "$ZONE"
+gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "bash /tmp/yomuyomu-vm-deploy.sh"
+rm -f "$REMOTE_SCRIPT"
+
+echo "Yomuyomu should be available at: http://$EXTERNAL_IP"
