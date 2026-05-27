@@ -164,8 +164,8 @@ Check services:
 
 ```bash
 docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml ps
-curl -f http://localhost/api/health
-curl -f http://localhost/nlp/health
+curl -fsS http://localhost/api/health
+curl -fsS http://localhost/nlp/health
 ```
 
 Open:

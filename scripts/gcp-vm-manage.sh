@@ -36,7 +36,7 @@ wait_for_health() {
   gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command '
     set -euo pipefail
     for attempt in {1..60}; do
-      if curl -fsS http://localhost/api/health >/dev/null && curl -fsS http://localhost/nlp/health >/dev/null && curl -fsS http://localhost/ >/dev/null; then
+      if curl -fsS http://localhost/api/health | grep -q '"status":"ok"' && curl -fsS http://localhost/nlp/health | grep -q '"status":"ok"' && curl -fsS http://localhost/ >/dev/null; then
         exit 0
       fi
       sleep 5
