@@ -35,6 +35,7 @@ Budget guardrail:
 - `.env.gcp-vm.example`: environment template
 - `infra/docker/web.prod.Dockerfile`: production Next.js image
 - `infra/caddy/Caddyfile`: same-origin proxy for Web, API, and NLP
+- `scripts/gcp-vm-preflight.sh`: read-only Cloud Shell checks before creating resources
 - `scripts/gcp-vm-bootstrap.sh`: installs Docker and swap on Ubuntu
 - `scripts/gcp-vm-create-and-deploy.sh`: Cloud Shell helper that creates the VM and deploys the stack
 - `scripts/gcp-vm-manage.sh`: Cloud Shell helper for status, start, stop, logs, SSH, update, backup, and restore
@@ -57,6 +58,14 @@ git switch feat/positioning-validation-pivot
 ## 2. One-Command Deploy From Cloud Shell
 
 The helper script creates the firewall rule and VM, waits for Docker setup, clones the selected branch on the VM, generates `.env.gcp-vm`, starts Docker Compose, waits for health checks, and prints the public URL.
+
+First run the read-only preflight:
+
+```bash
+PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-preflight.sh
+```
+
+Then deploy:
 
 ```bash
 PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-create-and-deploy.sh
