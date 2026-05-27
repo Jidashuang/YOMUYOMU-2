@@ -6,6 +6,7 @@ ZONE="${ZONE:-us-west1-b}"
 INSTANCE_NAME="${INSTANCE_NAME:-yomuyomu-vm}"
 MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
 FIREWALL_RULE="${FIREWALL_RULE:-yomuyomu-allow-http-https}"
+NETWORK="${NETWORK:-default}"
 
 failures=0
 
@@ -71,6 +72,12 @@ else
   fail "machine type is not available in $ZONE: $MACHINE_TYPE"
 fi
 
+if gcloud compute networks describe "$NETWORK" >/dev/null 2>&1; then
+  ok "VPC network exists: $NETWORK"
+else
+  fail "VPC network is not accessible: $NETWORK. Create a VPC or rerun with NETWORK=your-network."
+fi
+
 if gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" >/dev/null 2>&1; then
   STATUS="$(gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" --format='get(status)')"
   IP="$(gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
@@ -94,5 +101,5 @@ cat <<NEXT
 preflight passed.
 
 Next:
-PROJECT_ID=$PROJECT_ID ZONE=$ZONE MACHINE_TYPE=$MACHINE_TYPE ./scripts/gcp-vm-create-and-deploy.sh
+PROJECT_ID=$PROJECT_ID ZONE=$ZONE MACHINE_TYPE=$MACHINE_TYPE NETWORK=$NETWORK ./scripts/gcp-vm-create-and-deploy.sh
 NEXT

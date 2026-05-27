@@ -7,6 +7,7 @@ INSTANCE_NAME="${INSTANCE_NAME:-yomuyomu-vm}"
 MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
 BOOT_DISK_SIZE="${BOOT_DISK_SIZE:-30GB}"
 FIREWALL_RULE="${FIREWALL_RULE:-yomuyomu-allow-http-https}"
+NETWORK="${NETWORK:-default}"
 NETWORK_TAG="${NETWORK_TAG:-yomuyomu-web}"
 REPO_URL="${REPO_URL:-https://github.com/Jidashuang/YOMUYOMU-2.git}"
 BRANCH="${BRANCH:-$(git branch --show-current 2>/dev/null || echo main)}"
@@ -33,6 +34,7 @@ gcloud services enable compute.googleapis.com
 if ! gcloud compute firewall-rules describe "$FIREWALL_RULE" >/dev/null 2>&1; then
   gcloud compute firewall-rules create "$FIREWALL_RULE" \
     --allow tcp:80,tcp:443 \
+    --network "$NETWORK" \
     --target-tags "$NETWORK_TAG" \
     --description "Allow HTTP and HTTPS for Yomuyomu"
 fi
@@ -45,6 +47,7 @@ if ! gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" >/dev/nul
     --image-project ubuntu-os-cloud \
     --boot-disk-size "$BOOT_DISK_SIZE" \
     --boot-disk-type pd-standard \
+    --network "$NETWORK" \
     --tags "$NETWORK_TAG" \
     --metadata-from-file startup-script=scripts/gcp-vm-bootstrap.sh
 fi

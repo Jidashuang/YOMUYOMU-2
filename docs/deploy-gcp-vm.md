@@ -77,6 +77,7 @@ Optional overrides:
 PROJECT_ID=your-gcp-project-id \
 ZONE=us-central1-a \
 MACHINE_TYPE=e2-small \
+NETWORK=default \
 BRANCH=feat/positioning-validation-pivot \
 ./scripts/gcp-vm-create-and-deploy.sh
 ```
