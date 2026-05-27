@@ -37,6 +37,7 @@ Budget guardrail:
 - `infra/caddy/Caddyfile`: same-origin proxy for Web, API, and NLP
 - `scripts/gcp-vm-bootstrap.sh`: installs Docker and swap on Ubuntu
 - `scripts/gcp-vm-create-and-deploy.sh`: Cloud Shell helper that creates the VM and deploys the stack
+- `scripts/gcp-vm-manage.sh`: Cloud Shell helper for status, start, stop, logs, SSH, and update
 
 ## 1. Prepare Cloud Shell
 
@@ -182,7 +183,21 @@ docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml up -d caddy
 
 Caddy will request and renew TLS certificates automatically when DNS is correct and ports `80`/`443` are open.
 
-## 8. Updating After New Commits
+## 8. Manage The VM
+
+Use the helper from Cloud Shell:
+
+```bash
+PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh status
+PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh logs
+PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh update
+PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh stop
+PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh start
+```
+
+Use `stop` when you are not testing. The persistent disk remains, but VM runtime cost stops.
+
+## 9. Updating After New Commits
 
 ```bash
 cd ~/yomuyomu
