@@ -3,11 +3,18 @@ set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}"
 EXPECTED_GCLOUD_ACCOUNT="${EXPECTED_GCLOUD_ACCOUNT-jidashuang8@gmail.com}"
+EXPECTED_GCP_PROJECT="${EXPECTED_GCP_PROJECT-project-c2a014a9-0b24-44a9-abb}"
 BUDGET_AMOUNT="${BUDGET_AMOUNT:-10USD}"
 DISPLAY_NAME="${DISPLAY_NAME:-Yomuyomu $BUDGET_AMOUNT monthly guardrail}"
 
 if [ -z "$PROJECT_ID" ]; then
   echo "Set PROJECT_ID or run: gcloud config set project YOUR_PROJECT_ID" >&2
+  exit 1
+fi
+
+if [ -n "$EXPECTED_GCP_PROJECT" ] && [ "$PROJECT_ID" != "$EXPECTED_GCP_PROJECT" ]; then
+  echo "PROJECT_ID is $PROJECT_ID, expected $EXPECTED_GCP_PROJECT" >&2
+  echo "Run: gcloud config set project $EXPECTED_GCP_PROJECT" >&2
   exit 1
 fi
 
