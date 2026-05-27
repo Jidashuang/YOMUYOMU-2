@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}"
+EXPECTED_GCLOUD_ACCOUNT="${EXPECTED_GCLOUD_ACCOUNT-jidashuang8@gmail.com}"
 ZONE="${ZONE:-us-west1-b}"
 INSTANCE_NAME="${INSTANCE_NAME:-yomuyomu-vm}"
 MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
@@ -24,6 +25,18 @@ fi
 
 if [ ! -f scripts/gcp-vm-bootstrap.sh ]; then
   echo "Run this script from the repository root." >&2
+  exit 1
+fi
+
+ACTIVE_ACCOUNT="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -n 1 || true)"
+if [ -z "$ACTIVE_ACCOUNT" ]; then
+  echo "No active gcloud account. Run: gcloud auth login" >&2
+  exit 1
+fi
+
+if [ -n "$EXPECTED_GCLOUD_ACCOUNT" ] && [ "$ACTIVE_ACCOUNT" != "$EXPECTED_GCLOUD_ACCOUNT" ]; then
+  echo "Active gcloud account is $ACTIVE_ACCOUNT, expected $EXPECTED_GCLOUD_ACCOUNT" >&2
+  echo "Run: gcloud config set account $EXPECTED_GCLOUD_ACCOUNT" >&2
   exit 1
 fi
 

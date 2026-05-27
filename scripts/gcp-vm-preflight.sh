@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}"
+EXPECTED_GCLOUD_ACCOUNT="${EXPECTED_GCLOUD_ACCOUNT-jidashuang8@gmail.com}"
 ZONE="${ZONE:-us-west1-b}"
 INSTANCE_NAME="${INSTANCE_NAME:-yomuyomu-vm}"
 MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
@@ -37,6 +38,11 @@ fi
 if gcloud auth list --filter=status:ACTIVE --format='value(account)' | grep -q .; then
   ACTIVE_ACCOUNT="$(gcloud auth list --filter=status:ACTIVE --format='value(account)' | head -n 1)"
   ok "active gcloud account: $ACTIVE_ACCOUNT"
+  if [ -n "$EXPECTED_GCLOUD_ACCOUNT" ] && [ "$ACTIVE_ACCOUNT" != "$EXPECTED_GCLOUD_ACCOUNT" ]; then
+    fail "active gcloud account is $ACTIVE_ACCOUNT, expected $EXPECTED_GCLOUD_ACCOUNT"
+    printf 'Run: gcloud config set account %s\n' "$EXPECTED_GCLOUD_ACCOUNT" >&2
+    exit 1
+  fi
 else
   fail "no active gcloud account; run gcloud auth login."
 fi

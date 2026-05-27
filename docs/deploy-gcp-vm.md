@@ -46,9 +46,14 @@ Budget guardrail:
 Open Google Cloud Shell, select your project, then clone this repo so the startup script is available:
 
 ```bash
+gcloud auth list --filter=status:ACTIVE --format='value(account)'
+gcloud config get-value project
+
 git clone https://github.com/Jidashuang/YOMUYOMU-2.git yomuyomu
 cd yomuyomu
 ```
+
+For Jidashuang's project, confirm the active account is `jidashuang8@gmail.com` and the project is `project-c2a014a9-0b24-44a9-abb` before running any deploy command. The scripts default to that expected account and stop if another Google account is active.
 
 If the GCP deploy files are on a feature branch, switch to it:
 
