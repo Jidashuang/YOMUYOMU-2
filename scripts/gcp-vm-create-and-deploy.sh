@@ -59,6 +59,17 @@ cat > "$REMOTE_SCRIPT" <<REMOTE
 #!/usr/bin/env bash
 set -euo pipefail
 
+for attempt in {1..60}; do
+  if command -v git >/dev/null 2>&1 && command -v docker >/dev/null 2>&1 && sudo docker compose version >/dev/null 2>&1; then
+    break
+  fi
+  if [ "\$attempt" -eq 60 ]; then
+    echo "Docker setup did not finish in time. Check the VM startup script logs." >&2
+    exit 1
+  fi
+  sleep 10
+done
+
 if [ ! -d "\$HOME/yomuyomu/.git" ]; then
   git clone "$REPO_URL" "\$HOME/yomuyomu"
 fi

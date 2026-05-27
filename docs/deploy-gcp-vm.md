@@ -48,7 +48,7 @@ git switch feat/positioning-validation-pivot
 
 ## 2. One-Command Deploy From Cloud Shell
 
-The helper script creates the firewall rule and VM, waits for Docker setup, clones the current branch on the VM, generates `.env.gcp-vm`, starts Docker Compose, and prints the public URL.
+The helper script creates the firewall rule and VM, waits for Docker setup, clones the selected branch on the VM, generates `.env.gcp-vm`, starts Docker Compose, and prints the public URL.
 
 ```bash
 PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-create-and-deploy.sh
