@@ -48,7 +48,9 @@ else
   fail "project is not accessible: $PROJECT_ID"
 fi
 
+compute_api_enabled=false
 if gcloud services list --enabled --filter='config.name=compute.googleapis.com' --format='value(config.name)' 2>/dev/null | grep -q compute.googleapis.com; then
+  compute_api_enabled=true
   ok "Compute Engine API is enabled"
 else
   warn "Compute Engine API is not enabled yet; deploy script will try to enable it."
@@ -60,36 +62,40 @@ else
   warn "could not confirm billing is enabled; VM creation will fail if billing is disabled."
 fi
 
-if gcloud compute zones describe "$ZONE" >/dev/null 2>&1; then
-  ok "zone exists: $ZONE"
-else
-  fail "zone is not accessible: $ZONE"
-fi
+if [ "$compute_api_enabled" = true ]; then
+  if gcloud compute zones describe "$ZONE" >/dev/null 2>&1; then
+    ok "zone exists: $ZONE"
+  else
+    fail "zone is not accessible: $ZONE"
+  fi
 
-if gcloud compute machine-types describe "$MACHINE_TYPE" --zone "$ZONE" >/dev/null 2>&1; then
-  ok "machine type exists in zone: $MACHINE_TYPE"
-else
-  fail "machine type is not available in $ZONE: $MACHINE_TYPE"
-fi
+  if gcloud compute machine-types describe "$MACHINE_TYPE" --zone "$ZONE" >/dev/null 2>&1; then
+    ok "machine type exists in zone: $MACHINE_TYPE"
+  else
+    fail "machine type is not available in $ZONE: $MACHINE_TYPE"
+  fi
 
-if gcloud compute networks describe "$NETWORK" >/dev/null 2>&1; then
-  ok "VPC network exists: $NETWORK"
-else
-  fail "VPC network is not accessible: $NETWORK. Create a VPC or rerun with NETWORK=your-network."
-fi
+  if gcloud compute networks describe "$NETWORK" >/dev/null 2>&1; then
+    ok "VPC network exists: $NETWORK"
+  else
+    fail "VPC network is not accessible: $NETWORK. Create a VPC or rerun with NETWORK=your-network."
+  fi
 
-if gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" >/dev/null 2>&1; then
-  STATUS="$(gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" --format='get(status)')"
-  IP="$(gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
-  ok "VM already exists: $INSTANCE_NAME status=$STATUS ip=$IP"
-else
-  ok "VM does not exist yet and can be created: $INSTANCE_NAME"
-fi
+  if gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" >/dev/null 2>&1; then
+    STATUS="$(gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" --format='get(status)')"
+    IP="$(gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
+    ok "VM already exists: $INSTANCE_NAME status=$STATUS ip=$IP"
+  else
+    ok "VM does not exist yet and can be created: $INSTANCE_NAME"
+  fi
 
-if gcloud compute firewall-rules describe "$FIREWALL_RULE" >/dev/null 2>&1; then
-  ok "firewall rule already exists: $FIREWALL_RULE"
+  if gcloud compute firewall-rules describe "$FIREWALL_RULE" >/dev/null 2>&1; then
+    ok "firewall rule already exists: $FIREWALL_RULE"
+  else
+    ok "firewall rule does not exist yet and can be created: $FIREWALL_RULE"
+  fi
 else
-  ok "firewall rule does not exist yet and can be created: $FIREWALL_RULE"
+  warn "skipping Compute Engine zone, machine type, network, VM, and firewall checks until the API is enabled."
 fi
 
 if [ "$failures" -gt 0 ]; then

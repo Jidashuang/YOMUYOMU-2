@@ -29,14 +29,15 @@ fi
 
 gcloud config set project "$PROJECT_ID"
 gcloud config set compute/zone "$ZONE"
-gcloud services enable compute.googleapis.com
+gcloud services enable compute.googleapis.com --quiet
 
 if ! gcloud compute firewall-rules describe "$FIREWALL_RULE" >/dev/null 2>&1; then
   gcloud compute firewall-rules create "$FIREWALL_RULE" \
     --allow tcp:80,tcp:443 \
     --network "$NETWORK" \
     --target-tags "$NETWORK_TAG" \
-    --description "Allow HTTP and HTTPS for Yomuyomu"
+    --description "Allow HTTP and HTTPS for Yomuyomu" \
+    --quiet
 fi
 
 if ! gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" >/dev/null 2>&1; then
@@ -49,11 +50,12 @@ if ! gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" >/dev/nul
     --boot-disk-type pd-standard \
     --network "$NETWORK" \
     --tags "$NETWORK_TAG" \
-    --metadata-from-file startup-script=scripts/gcp-vm-bootstrap.sh
+    --metadata-from-file startup-script=scripts/gcp-vm-bootstrap.sh \
+    --quiet
 fi
 
 echo "Waiting for VM startup script..."
-gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "cloud-init status --wait || true"
+gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "cloud-init status --wait || true" --quiet
 
 EXTERNAL_IP="$(gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
 REMOTE_SCRIPT="$(mktemp)"
@@ -127,8 +129,8 @@ done
 REMOTE
 
 chmod +x "$REMOTE_SCRIPT"
-gcloud compute scp "$REMOTE_SCRIPT" "$INSTANCE_NAME:/tmp/yomuyomu-vm-deploy.sh" --zone "$ZONE"
-gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "bash /tmp/yomuyomu-vm-deploy.sh"
+gcloud compute scp "$REMOTE_SCRIPT" "$INSTANCE_NAME:/tmp/yomuyomu-vm-deploy.sh" --zone "$ZONE" --quiet
+gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "bash /tmp/yomuyomu-vm-deploy.sh" --quiet
 rm -f "$REMOTE_SCRIPT"
 
 echo "Yomuyomu should be available at: http://$EXTERNAL_IP"
