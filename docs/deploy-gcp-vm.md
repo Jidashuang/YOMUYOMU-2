@@ -37,7 +37,7 @@ Budget guardrail:
 - `infra/caddy/Caddyfile`: same-origin proxy for Web, API, and NLP
 - `scripts/gcp-vm-bootstrap.sh`: installs Docker and swap on Ubuntu
 - `scripts/gcp-vm-create-and-deploy.sh`: Cloud Shell helper that creates the VM and deploys the stack
-- `scripts/gcp-vm-manage.sh`: Cloud Shell helper for status, start, stop, logs, SSH, and update
+- `scripts/gcp-vm-manage.sh`: Cloud Shell helper for status, start, stop, logs, SSH, update, backup, and restore
 
 ## 1. Prepare Cloud Shell
 
@@ -191,13 +191,38 @@ Use the helper from Cloud Shell:
 PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh status
 PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh logs
 PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh update
+PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh backup-db
 PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh stop
 PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh start
 ```
 
 Use `stop` when you are not testing. The persistent disk remains, but VM runtime cost stops.
 
-## 9. Updating After New Commits
+## 9. Migrate Railway Data
+
+If the Railway deployment has real user data, export its PostgreSQL database as a custom-format dump, then restore it into the VM.
+
+From a machine that can access the Railway database:
+
+```bash
+pg_dump "$RAILWAY_DATABASE_URL" -Fc -f railway-yomuyomu.dump
+```
+
+Then from Cloud Shell, after the VM is deployed:
+
+```bash
+PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh restore-db ./railway-yomuyomu.dump
+```
+
+Before any restore, make a VM backup:
+
+```bash
+PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh backup-db
+```
+
+`restore-db` cleans and replaces the target database. Use it only when you intend to overwrite the VM database.
+
+## 10. Updating After New Commits
 
 ```bash
 cd ~/yomuyomu

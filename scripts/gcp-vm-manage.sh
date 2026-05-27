@@ -83,8 +83,44 @@ case "$ACTION" in
     IP="$(external_ip)"
     echo "url=http://$IP"
     ;;
+  backup-db)
+    BACKUP_NAME="yomuyomu-$(date -u +%Y%m%dT%H%M%SZ).dump"
+    REMOTE_BACKUP="~/yomuyomu-backups/$BACKUP_NAME"
+    gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "
+      set -euo pipefail
+      mkdir -p ~/yomuyomu-backups
+      cd ~/yomuyomu
+      set -a
+      . ./.env.gcp-vm
+      set +a
+      sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml exec -T postgres pg_dump -U \"\${POSTGRES_USER:-yomuyomu}\" -d \"\${POSTGRES_DB:-yomuyomu}\" -Fc > $REMOTE_BACKUP
+    "
+    gcloud compute scp "$INSTANCE_NAME:$REMOTE_BACKUP" "./$BACKUP_NAME" --zone "$ZONE"
+    echo "backup=./$BACKUP_NAME"
+    ;;
+  restore-db)
+    BACKUP_FILE="${2:-}"
+    if [ -z "$BACKUP_FILE" ]; then
+      echo "Usage: PROJECT_ID=your-project-id $0 restore-db ./backup.dump" >&2
+      exit 1
+    fi
+    if [ ! -f "$BACKUP_FILE" ]; then
+      echo "Backup file not found: $BACKUP_FILE" >&2
+      exit 1
+    fi
+    gcloud compute scp "$BACKUP_FILE" "$INSTANCE_NAME:/tmp/yomuyomu-restore.dump" --zone "$ZONE"
+    gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command '
+      set -euo pipefail
+      cd ~/yomuyomu
+      set -a
+      . ./.env.gcp-vm
+      set +a
+      sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml exec -T postgres pg_restore -U "${POSTGRES_USER:-yomuyomu}" -d "${POSTGRES_DB:-yomuyomu}" --clean --if-exists --no-owner < /tmp/yomuyomu-restore.dump
+      rm -f /tmp/yomuyomu-restore.dump
+    '
+    ;;
   *)
-    echo "Usage: PROJECT_ID=your-project-id $0 {status|start|stop|ssh|logs|update}" >&2
+    echo "Usage: PROJECT_ID=your-project-id $0 {status|start|stop|ssh|logs|update|backup-db|restore-db}" >&2
     exit 1
     ;;
 esac
