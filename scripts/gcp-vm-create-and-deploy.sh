@@ -109,8 +109,18 @@ fi
 
 sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml up -d --build
 sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml ps
-curl -f http://localhost/api/health
-curl -f http://localhost/nlp/health
+
+for attempt in {1..60}; do
+  if curl -fsS http://localhost/api/health >/dev/null && curl -fsS http://localhost/nlp/health >/dev/null && curl -fsS http://localhost/ >/dev/null; then
+    break
+  fi
+  if [ "\$attempt" -eq 60 ]; then
+    echo "Yomuyomu did not become healthy in time. Check Docker logs with:" >&2
+    echo "sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml logs --tail=100" >&2
+    exit 1
+  fi
+  sleep 5
+done
 REMOTE
 
 chmod +x "$REMOTE_SCRIPT"

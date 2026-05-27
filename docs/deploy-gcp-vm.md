@@ -22,6 +22,13 @@ Start with:
 
 If using the Google Developer Program Premium credit, treat the monthly credit as a guardrail, not a guarantee. Set a billing budget alert before deploying.
 
+Budget guardrail:
+
+- Create a Billing budget alert for this project before deploying.
+- Start with `e2-micro`; move to `e2-small` only if build/runtime pressure requires it.
+- Stop or delete the VM when you are not actively testing.
+- Do not add Cloud SQL, Memorystore, or a load balancer for the first validation deploy.
+
 ## Files
 
 - `docker-compose.gcp-vm.yml`: production-ish single-VM stack
@@ -48,7 +55,7 @@ git switch feat/positioning-validation-pivot
 
 ## 2. One-Command Deploy From Cloud Shell
 
-The helper script creates the firewall rule and VM, waits for Docker setup, clones the selected branch on the VM, generates `.env.gcp-vm`, starts Docker Compose, and prints the public URL.
+The helper script creates the firewall rule and VM, waits for Docker setup, clones the selected branch on the VM, generates `.env.gcp-vm`, starts Docker Compose, waits for health checks, and prints the public URL.
 
 ```bash
 PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-create-and-deploy.sh
