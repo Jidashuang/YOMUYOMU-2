@@ -35,6 +35,7 @@ Budget guardrail:
 - `.env.gcp-vm.example`: environment template
 - `infra/docker/web.prod.Dockerfile`: production Next.js image
 - `infra/caddy/Caddyfile`: same-origin proxy for Web, API, and NLP
+- `scripts/gcp-budget-alert.sh`: optional Cloud Billing budget helper for the small monthly credit
 - `scripts/gcp-vm-preflight.sh`: read-only Cloud Shell checks before creating resources
 - `scripts/gcp-vm-bootstrap.sh`: installs Docker and swap on Ubuntu
 - `scripts/gcp-vm-create-and-deploy.sh`: Cloud Shell helper that creates the VM and deploys the stack
@@ -63,6 +64,12 @@ First run the read-only preflight:
 
 ```bash
 PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-preflight.sh
+```
+
+Create a budget alert before creating the VM:
+
+```bash
+PROJECT_ID=your-gcp-project-id ./scripts/gcp-budget-alert.sh
 ```
 
 Then deploy:
