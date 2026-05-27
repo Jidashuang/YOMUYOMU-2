@@ -219,6 +219,8 @@ PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh stop
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh start
 ```
 
+`verify` is read-only. It checks the public homepage, API health, and NLP health; if a check fails, it prints VM firewall, Docker Compose, local health, listening port, and recent service log diagnostics.
+
 Use `stop` when you are not testing. The persistent disk remains, but VM runtime cost stops.
 
 ## 9. Migrate Railway Data

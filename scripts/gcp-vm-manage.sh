@@ -84,10 +84,46 @@ case "$ACTION" in
     fi
     IP="$(external_ip)"
     echo "url=http://$IP"
-    curl -fsS "http://$IP/" >/dev/null
-    curl -fsS "http://$IP/api/health" | grep -q '"status":"ok"'
-    curl -fsS "http://$IP/nlp/health" | grep -q '"status":"ok"'
-    echo "verify=ok"
+    FAILED=0
+    if curl -fsS --max-time 10 "http://$IP/" >/dev/null; then
+      echo "ok: public homepage"
+    else
+      echo "fail: public homepage" >&2
+      FAILED=1
+    fi
+    if curl -fsS --max-time 10 "http://$IP/api/health" | grep -q '"status":"ok"'; then
+      echo "ok: public api health"
+    else
+      echo "fail: public api health" >&2
+      FAILED=1
+    fi
+    if curl -fsS --max-time 10 "http://$IP/nlp/health" | grep -q '"status":"ok"'; then
+      echo "ok: public nlp health"
+    else
+      echo "fail: public nlp health" >&2
+      FAILED=1
+    fi
+    if [ "$FAILED" -eq 0 ]; then
+      echo "verify=ok"
+      exit 0
+    fi
+    echo "verify=failed"
+    gcloud compute firewall-rules describe yomuyomu-allow-http-https --format='yaml(name,network,allowed,targetTags,direction,disabled)' || true
+    gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command '
+      set +e
+      cd ~/yomuyomu || { echo "repo=missing"; exit 0; }
+      echo "--- docker compose ps ---"
+      sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml ps
+      echo "--- listening ports ---"
+      sudo ss -ltnp | grep -E ":(80|443|3000|8000|8001)\\b" || true
+      echo "--- local checks ---"
+      curl -fsS --max-time 5 http://localhost/ >/dev/null && echo "ok: local homepage" || echo "fail: local homepage"
+      curl -fsS --max-time 5 http://localhost/api/health | grep -q "\"status\":\"ok\"" && echo "ok: local api health" || echo "fail: local api health"
+      curl -fsS --max-time 5 http://localhost/nlp/health | grep -q "\"status\":\"ok\"" && echo "ok: local nlp health" || echo "fail: local nlp health"
+      echo "--- recent logs ---"
+      sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml logs --tail=80 caddy web api nlp
+    ' || true
+    exit 1
     ;;
   start)
     gcloud compute instances start "$INSTANCE_NAME" --zone "$ZONE"
