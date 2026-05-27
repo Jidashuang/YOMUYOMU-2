@@ -210,12 +210,13 @@ Caddy will request and renew TLS certificates automatically when DNS is correct 
 Use the helper from Cloud Shell:
 
 ```bash
-PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh status
-PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh logs
-PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh update
-PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh backup-db
-PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh stop
-PROJECT_ID=your-gcp-project-id ./scripts/gcp-vm-manage.sh start
+PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh status
+PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh verify
+PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh logs
+PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh update
+PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh backup-db
+PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh stop
+PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh start
 ```
 
 Use `stop` when you are not testing. The persistent disk remains, but VM runtime cost stops.

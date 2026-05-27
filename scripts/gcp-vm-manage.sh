@@ -75,6 +75,20 @@ case "$ACTION" in
       gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "cd ~/yomuyomu && sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml ps" || true
     fi
     ;;
+  verify)
+    STATUS="$(instance_status)"
+    echo "instance=$INSTANCE_NAME zone=$ZONE status=$STATUS"
+    if [ "$STATUS" != "RUNNING" ]; then
+      echo "VM is not running." >&2
+      exit 1
+    fi
+    IP="$(external_ip)"
+    echo "url=http://$IP"
+    curl -fsS "http://$IP/" >/dev/null
+    curl -fsS "http://$IP/api/health" | grep -q '"status":"ok"'
+    curl -fsS "http://$IP/nlp/health" | grep -q '"status":"ok"'
+    echo "verify=ok"
+    ;;
   start)
     gcloud compute instances start "$INSTANCE_NAME" --zone "$ZONE"
     IP="$(external_ip)"
@@ -140,7 +154,7 @@ case "$ACTION" in
     '
     ;;
   *)
-    echo "Usage: PROJECT_ID=your-project-id $0 {status|start|stop|ssh|logs|update|backup-db|restore-db}" >&2
+    echo "Usage: PROJECT_ID=your-project-id $0 {status|verify|start|stop|ssh|logs|update|backup-db|restore-db}" >&2
     exit 1
     ;;
 esac
