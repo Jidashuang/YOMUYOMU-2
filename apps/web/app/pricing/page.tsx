@@ -23,12 +23,12 @@ const PLANS: Plan[] = [
     name: "Free",
     price: "¥0",
     cadence: "持续可用",
-    positioning: "适合先把一段你正在卡的日文读完。",
+    positioning: "适合先读完一篇公共领域短文，或把一段正在卡的日文读通。",
     cta: { label: "开始读一段", href: "/library" },
     features: [
-      { text: "粘贴文本或上传 EPUB，不限来源。" },
-      { text: "点词查义 + 整句中文 AI 解释（每日额度有限）。" },
-      { text: "生词本与到期复习，CSV / JSON 导出。" },
+      { text: "公共领域书架 + 自己粘贴文本或上传 EPUB。" },
+      { text: "N3+ / N2+ / N1 难词标注，点词查义。" },
+      { text: "整句中文 AI 拆解、生词本与到期复习。" },
     ],
   },
   {
@@ -38,10 +38,10 @@ const PLANS: Plan[] = [
     cadence: "每月（验证期内锁定）",
     positioning: "适合每周读真实日文内容、希望少切换工具的人。",
     highlight: true,
-    cta: { label: "我想付费试用", href: "mailto:hello@yomuyomu.app?subject=Yomuyomu%20Pro%20%E6%97%A9%E6%9C%9F%E4%BB%98%E8%B4%B9" },
+    cta: { label: "我想付费试用", href: "mailto:hello@genbun.app?subject=Genbun%20Pro%20%E6%97%A9%E6%9C%9F%E4%BB%98%E8%B4%B9" },
     features: [
-      { text: "把读不顺的轻小说 / NHK / JLPT 段落，一次读完不再切窗口。" },
-      { text: "更高的 AI 整句解释额度，覆盖一次完整的阅读 session。" },
+      { text: "把读不顺的轻小说 / NHK / JLPT / 名著段落，一次读完不再切窗口。" },
+      { text: "更高的 AI 整句拆解额度，覆盖一次完整的原文阅读 session。" },
       { text: "完整的生词复习节奏：到期复习、状态追踪、导出到你已有的工作流。" },
       { text: "直接和创始人沟通：你卡在哪一段，下一周修哪里。" },
     ],
@@ -53,13 +53,13 @@ export default function PricingPage() {
     <section className="space-y-8">
       <header className="space-y-3">
         <p className="text-xs font-medium uppercase tracking-wider text-brand-700 dark:text-brand-300">
-          定价 · 验证期早期价
+          Genbun pricing · 验证期早期价
         </p>
         <h1 data-testid="pricing-headline" className="text-3xl font-semibold">
-          按阅读工作流付费，而不是按 AI 用量
+          按原文阅读工作流付费，而不是按 AI 用量
         </h1>
         <p data-testid="pricing-subhead" className="max-w-2xl text-sm text-zinc-600 dark:text-zinc-300">
-          Yomuyomu 在 2 周验证窗口内，只服务中文母语 N4–N2 的真实阅读者。
+          Genbun 先服务 N2-N1 主力、兼容 N3 过渡的真实原文阅读者。
           Pro 卖的是「读完一段你之前读不顺的日文 + 把生词留下 + 第二天还会回来」这个完整动作，
           不是 AI 调用次数本身。
         </p>

@@ -27,6 +27,14 @@ import { sentenceContextFromBlock } from "./components/reader-utils";
 import { TokenPopup } from "./components/TokenPopup";
 import type { SelectedTokenState, SelectionMenuState } from "./components/types";
 
+type AnnotationLevel = "N3" | "N2" | "N1";
+
+const ANNOTATION_LEVELS: Array<{ value: AnnotationLevel; label: string; description: string }> = [
+  { value: "N3", label: "N3+", description: "N3/N2/N1" },
+  { value: "N2", label: "N2+", description: "N2/N1" },
+  { value: "N1", label: "N1", description: "仅 N1" },
+];
+
 export default function ReaderPage() {
   const params = useParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -39,6 +47,7 @@ export default function ReaderPage() {
   const [progressPercent, setProgressPercent] = useState(0);
   const [latestAi, setLatestAi] = useState<AIExplanationResponse | null>(null);
   const [addingSuggestedKey, setAddingSuggestedKey] = useState<string | null>(null);
+  const [annotationLevel, setAnnotationLevel] = useState<AnnotationLevel>("N2");
 
   const articleQuery = useQuery({
     queryKey: ["article", articleId],
@@ -179,7 +188,7 @@ export default function ReaderPage() {
         sentence: context.sentence,
         previous_sentence: context.previousSentence,
         next_sentence: context.nextSentence,
-        user_level: "N3",
+        user_level: annotationLevel,
       });
     },
     onSuccess: (result) => {
@@ -226,11 +235,41 @@ export default function ReaderPage() {
 
   return (
     <section className="relative space-y-4">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold">阅读这一段</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">
-          核心动作：读完它 → 卡住时点词或选句让 AI 用中文解释 → 把对你有用的词加进生词本。
-        </p>
+      <header className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="space-y-1">
+          <h1 className="text-2xl font-semibold">原文精读</h1>
+          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+            读完它，卡住时点词或选句让 AI 中文拆解，再把对你有用的词加进生词本。
+          </p>
+        </div>
+        <div data-testid="annotation-controls" className="flex flex-col gap-2">
+          <p className="text-xs font-medium text-zinc-500">难词标注</p>
+          <div className="inline-flex rounded-md border border-stone-300 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-950">
+            {ANNOTATION_LEVELS.map((item) => (
+              <button
+                key={item.value}
+                type="button"
+                data-testid={`annotation-level-${item.value.toLowerCase()}`}
+                className={`rounded px-3 py-1.5 text-sm ${
+                  annotationLevel === item.value
+                    ? "bg-zinc-950 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                    : "text-zinc-600 hover:bg-stone-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                }`}
+                onClick={() => setAnnotationLevel(item.value)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-zinc-500">
+            当前显示：{ANNOTATION_LEVELS.find((item) => item.value === annotationLevel)?.description}
+          </p>
+          <div className="flex gap-2 text-[11px] text-zinc-500" aria-label="JLPT color legend">
+            <span className="rounded bg-sky-100 px-1.5 py-0.5 text-sky-950 dark:bg-sky-950/40 dark:text-sky-200">N3</span>
+            <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-950 dark:bg-amber-950/40 dark:text-amber-200">N2</span>
+            <span className="rounded bg-rose-100 px-1.5 py-0.5 text-rose-950 dark:bg-rose-950/40 dark:text-rose-200">N1</span>
+          </div>
+        </div>
       </header>
 
       {articleQuery.data ? (
@@ -255,6 +294,7 @@ export default function ReaderPage() {
       {articleQuery.data?.status === "ready" ? (
         <ReaderArticleView
           blocks={articleQuery.data.blocks}
+          annotationLevel={annotationLevel}
           highlightsByBlock={highlightsByBlock}
           onTokenSelect={setSelectedToken}
           onSelectionChange={(menu, error) => {

@@ -2,60 +2,122 @@
 
 import Link from "next/link";
 
+import { PUBLIC_BOOKS } from "../lib/public-books";
+
+const previewBooks = PUBLIC_BOOKS.slice(0, 4);
+
 export default function HomePage() {
   return (
-    <div className="space-y-10">
-      <section className="rounded-xl border border-zinc-200 bg-white p-8 dark:border-zinc-800 dark:bg-zinc-900">
-        <p className="text-xs font-medium uppercase tracking-wider text-brand-700 dark:text-brand-300">
-          Yomuyomu · 公测中（名称可能调整）
-        </p>
-        <h1 data-testid="home-headline" className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl">
-          专为中文母语 N4–N2 学习者打造的日语原文阅读工作台
-        </h1>
-        <p data-testid="home-subhead" className="mt-4 max-w-2xl text-base text-zinc-600 dark:text-zinc-300">
-          把你正在读的轻小说、NHK 新闻、JLPT 阅读、网文片段贴进来，
-          点词查义、整句中文解释、一键加入生词本与复习。不再在 Yomitan、Anki、ChatGPT、Jisho 之间来回切换。
-        </p>
+    <div className="min-h-[calc(100vh-96px)] space-y-5">
+      <section className="grid min-h-[620px] gap-5 lg:grid-cols-[280px_minmax(0,1fr)_300px]">
+        <aside className="rounded-lg border border-stone-200 bg-stone-50 p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-xs font-medium uppercase tracking-wider text-stone-500">Public shelf</p>
+              <h2 className="mt-1 text-lg font-semibold">公共领域书架</h2>
+            </div>
+            <Link href="/library" className="text-sm text-brand-700 hover:underline dark:text-brand-300">
+              全部
+            </Link>
+          </div>
 
-        <ul className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
-          <li className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-            <p className="font-medium">为谁设计</p>
-            <p className="mt-1 text-zinc-600 dark:text-zinc-300">中文母语、N4–N2、每周都在读真实日文内容的人。</p>
-          </li>
-          <li className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-            <p className="font-medium">你带什么进来</p>
-            <p className="mt-1 text-zinc-600 dark:text-zinc-300">你最近读不顺的一段日文：粘贴文本或上传 EPUB。</p>
-          </li>
-          <li className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-            <p className="font-medium">解决什么痛</p>
-            <p className="mt-1 text-zinc-600 dark:text-zinc-300">查词、整句中文解释、生词复习在同一个页面里完成。</p>
-          </li>
-        </ul>
+          <div className="mt-4 space-y-3" data-testid="home-public-books">
+            {previewBooks.map((book) => (
+              <Link
+                key={book.slug}
+                href="/library"
+                className="block rounded-md border border-stone-200 bg-white px-3 py-3 transition hover:border-brand-400 hover:bg-brand-50/40 dark:border-zinc-700 dark:bg-zinc-950 dark:hover:border-brand-500 dark:hover:bg-brand-950/20"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium leading-tight">{book.title}</p>
+                    <p className="mt-1 text-xs text-zinc-500">{book.author}</p>
+                  </div>
+                  <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-700 dark:bg-zinc-800 dark:text-zinc-300">
+                    {book.level}
+                  </span>
+                </div>
+                <p className="mt-2 line-clamp-2 text-xs leading-5 text-zinc-600 dark:text-zinc-300">{book.description}</p>
+              </Link>
+            ))}
+          </div>
+        </aside>
 
-        <div className="mt-6 flex flex-wrap gap-3">
-          <Link
-            href="/library"
-            data-testid="home-cta-import"
-            className="rounded-md bg-brand-500 px-4 py-2 text-white hover:bg-brand-700"
-          >
-            贴一段你最近读不顺的日文
-          </Link>
-          <Link href="/pricing" data-testid="home-cta-pricing" className="rounded-md border px-4 py-2">
-            查看定价
-          </Link>
-          <Link href="/login" className="rounded-md border px-4 py-2">
-            登录 / 注册
-          </Link>
-        </div>
-      </section>
+        <main className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 sm:p-7">
+          <p className="text-xs font-medium uppercase tracking-wider text-brand-700 dark:text-brand-300">
+            Genbun · 日文原文阅读工作台
+          </p>
+          <h1 data-testid="home-headline" className="mt-3 max-w-3xl text-3xl font-semibold leading-tight sm:text-5xl">
+            为 N2-N1 学习者准备的原文精读工作台
+          </h1>
+          <p data-testid="home-subhead" className="mt-4 max-w-3xl text-base leading-7 text-zinc-600 dark:text-zinc-300">
+            从一段读不顺的日文开始：选择 N3+、N2+ 或 N1 难词标注，点词查义，选句让 AI 中文拆解，
+            再把值得记住的词放进生词本复习。
+          </p>
 
-      <section className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="text-lg font-medium">为什么不是又一个日语阅读器</h2>
-        <ul className="mt-3 space-y-2 text-sm text-zinc-600 dark:text-zinc-300">
-          <li>· 我们只服务一种人：能读真实日文、但中途经常卡壳的中文母语者。</li>
-          <li>· 解释默认是中文，不是英文，也不是教学口吻；面向 N4–N2 的实际理解断点。</li>
-          <li>· 不做免费阅读库、不做语法课程、不做 AI 老师对话；只让你把手头的内容读完、把生词留下来。</li>
-        </ul>
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            {[
+              ["N2-N1 主力", "长句、抽象词、文学表达，不再靠来回切工具硬啃。"],
+              ["N3 过渡可用", "把标注范围调到 N3+，先看真正影响理解的词。"],
+              ["原文优先", "公共领域名著和你自己粘贴的片段，都进入同一套阅读流程。"],
+            ].map(([title, body]) => (
+              <div key={title} className="rounded-md border border-stone-200 bg-white/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/50">
+                <p className="font-medium">{title}</p>
+                <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{body}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-7 rounded-lg border border-dashed border-brand-300 bg-brand-50/45 p-4 dark:border-brand-700 dark:bg-brand-950/20">
+            <p className="text-sm font-medium">今天要读什么？</p>
+            <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
+              直接从左侧书架选一篇公共领域作品，或把你正在读的轻小说、新闻、论文摘要、JLPT 阅读片段贴进来。
+            </p>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Link
+                href="/library"
+                data-testid="home-cta-import"
+                className="rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700"
+              >
+                打开书架 / 粘贴片段
+              </Link>
+              <Link href="/login" className="rounded-md border border-stone-300 px-4 py-2 text-sm hover:bg-white dark:border-zinc-700 dark:hover:bg-zinc-800">
+                登录 / 注册
+              </Link>
+              <Link href="/pricing" data-testid="home-cta-pricing" className="rounded-md border border-stone-300 px-4 py-2 text-sm hover:bg-white dark:border-zinc-700 dark:hover:bg-zinc-800">
+                查看定价
+              </Link>
+            </div>
+          </div>
+        </main>
+
+        <aside className="space-y-4">
+          <div className="rounded-lg border border-stone-200 bg-stone-50 p-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <p className="text-xs font-medium uppercase tracking-wider text-stone-500">Today loop</p>
+            <h2 className="mt-1 text-lg font-semibold">阅读后要留下什么</h2>
+            <div className="mt-4 space-y-3 text-sm">
+              <div className="rounded-md bg-white p-3 dark:bg-zinc-950">
+                <p className="font-medium">难词标注</p>
+                <p className="mt-1 text-zinc-600 dark:text-zinc-300">N3+ / N2+ / N1 三档，颜色只服务阅读，不抢正文。</p>
+              </div>
+              <div className="rounded-md bg-white p-3 dark:bg-zinc-950">
+                <p className="font-medium">AI 句子拆解</p>
+                <p className="mt-1 text-zinc-600 dark:text-zinc-300">选中一句，得到中文释义、语法点和词语拆解。</p>
+              </div>
+              <div className="rounded-md bg-white p-3 dark:bg-zinc-950">
+                <p className="font-medium">生词回流</p>
+                <p className="mt-1 text-zinc-600 dark:text-zinc-300">点词或 AI 建议词，一键加入生词本，后面复习。</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border border-stone-200 bg-white/85 p-4 text-sm shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <p className="font-medium">不做什么</p>
+            <p className="mt-2 leading-6 text-zinc-600 dark:text-zinc-300">
+              不做泛课程、不做版权不清的书库、不做聊天老师。Genbun 只帮你把日文原文读通，把值得记住的词留下来。
+            </p>
+          </div>
+        </aside>
       </section>
     </div>
   );

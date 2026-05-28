@@ -6,17 +6,33 @@ import { useRef } from "react";
 import { closestTokenElement, tokenHasHighlight } from "./reader-utils";
 import type { SelectedTokenState, SelectionMenuState } from "./types";
 
+export type AnnotationLevel = "N3" | "N2" | "N1";
+
 const jlptClassMap: Record<JlptLevel, string> = {
-  N5: "text-emerald-900 dark:text-emerald-300",
-  N4: "text-teal-900 dark:text-teal-300",
-  N3: "text-sky-900 dark:text-sky-300",
-  N2: "text-amber-900 dark:text-amber-300",
-  N1: "text-rose-900 dark:text-rose-300",
+  N5: "text-zinc-900 dark:text-zinc-200",
+  N4: "text-zinc-900 dark:text-zinc-200",
+  N3: "bg-sky-100 text-sky-950 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-200 dark:ring-sky-900",
+  N2: "bg-amber-100 text-amber-950 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900",
+  N1: "bg-rose-100 text-rose-950 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900",
   Unknown: "text-zinc-900 dark:text-zinc-200",
 };
 
+const jlptRank: Record<AnnotationLevel, number> = {
+  N3: 3,
+  N2: 2,
+  N1: 1,
+};
+
+function shouldAnnotate(tokenLevel: JlptLevel, annotationLevel: AnnotationLevel) {
+  if (tokenLevel !== "N3" && tokenLevel !== "N2" && tokenLevel !== "N1") {
+    return false;
+  }
+  return jlptRank[tokenLevel] <= jlptRank[annotationLevel];
+}
+
 interface ReaderArticleViewProps {
   blocks: ArticleBlock[];
+  annotationLevel: AnnotationLevel;
   highlightsByBlock: Map<string, HighlightResponse[]>;
   onTokenSelect: (value: SelectedTokenState) => void;
   onSelectionChange: (menu: SelectionMenuState | null, error: string | null) => void;
@@ -24,6 +40,7 @@ interface ReaderArticleViewProps {
 
 export function ReaderArticleView({
   blocks,
+  annotationLevel,
   highlightsByBlock,
   onTokenSelect,
   onSelectionChange,
@@ -107,6 +124,7 @@ export function ReaderArticleView({
             {block.tokens.length > 0
               ? block.tokens.map((token: ArticleToken, tokenIndex: number) => {
                   const highlighted = tokenHasHighlight(block.id, token, highlightsByBlock);
+                  const annotated = shouldAnnotate(token.jlpt_level, annotationLevel);
                   return (
                     <span
                       key={`${block.id}-${tokenIndex}`}
@@ -114,7 +132,9 @@ export function ReaderArticleView({
                       data-block-id={block.id}
                       data-token-start={token.start_offset}
                       data-token-end={token.end_offset}
-                      className={`mx-[1px] rounded px-0.5 py-0.5 transition select-text ${jlptClassMap[token.jlpt_level]} ${highlighted ? "bg-yellow-200/70 dark:bg-yellow-700/40" : ""}`}
+                      className={`mx-[1px] rounded px-0.5 py-0.5 transition select-text ${
+                        annotated ? jlptClassMap[token.jlpt_level] : "text-zinc-900 dark:text-zinc-200"
+                      } ${highlighted ? "bg-yellow-200/70 dark:bg-yellow-700/40" : ""}`}
                       onClick={(event) => {
                         const rect = event.currentTarget.getBoundingClientRect();
                         onTokenSelect({

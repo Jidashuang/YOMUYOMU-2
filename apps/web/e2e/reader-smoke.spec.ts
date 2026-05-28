@@ -230,6 +230,13 @@ test("reader critical flow smoke", async ({ page }) => {
 
   await expect(page).toHaveURL(new RegExp(`/reader/${articleId}$`));
   await expect(page.getByTestId("reader-article-view")).toBeVisible();
+  await expect(page.getByTestId("annotation-controls")).toBeVisible();
+  await expect(page.getByTestId("annotation-level-n2")).toBeVisible();
+  await page.getByTestId("annotation-level-n3").click();
+  const n3Annotated = await page.locator("[data-testid='reader-token']", { hasText: "はず" }).first().evaluate((node) =>
+    node.className.includes("bg-sky")
+  );
+  expect(n3Annotated).toBeTruthy();
 
   await page.locator("[data-testid='reader-token']", { hasText: "来る" }).first().click();
   await expect(page.getByTestId("token-popup")).toBeVisible();

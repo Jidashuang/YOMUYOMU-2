@@ -1,12 +1,13 @@
 "use client";
 
-import type { SourceType } from "@yomuyomu/shared-types";
+import type { ArticleCreateRequest, SourceType } from "@yomuyomu/shared-types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { createArticle, deleteArticle, listArticles } from "../../lib/api";
+import { PUBLIC_BOOKS } from "../../lib/public-books";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 function statusLabel(status: string) {
@@ -16,7 +17,7 @@ function statusLabel(status: string) {
 }
 
 // Target-user sample: a short slice from a light-novel-flavored passage that
-// includes vocabulary and grammar typically tripping up N4-N2 readers.
+// includes vocabulary and grammar typically tripping up N2-N1 readers.
 const SAMPLE_TITLE = "示例 · 你最近读不顺的一段（替换成你自己的）";
 const SAMPLE_CONTENT = [
   "彼は来るはずだったのに、結局あの日は姿を見せなかった。",
@@ -49,12 +50,7 @@ export default function LibraryPage() {
   });
 
   const createMutation = useMutation({
-    mutationFn: () =>
-      createArticle({
-        title,
-        source_type: sourceType,
-        raw_content: sourceType === "epub" ? epubPayload : rawContent,
-      }),
+    mutationFn: (input: ArticleCreateRequest) => createArticle(input),
     onSuccess: (article) => {
       queryClient.invalidateQueries({ queryKey: ["articles"] });
       router.push(`/reader/${article.id}`);
@@ -75,8 +71,8 @@ export default function LibraryPage() {
   if (!isAuthorized) {
     return (
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold">Library</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">请先登录后再粘贴你正在读的日文。</p>
+        <h1 className="text-2xl font-semibold">书架</h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">请先登录后打开默认书架，或粘贴你正在读的日文。</p>
         <Link href="/login" className="inline-flex rounded-md bg-brand-500 px-4 py-2 text-white hover:bg-brand-700">
           去登录
         </Link>
@@ -90,13 +86,63 @@ export default function LibraryPage() {
   return (
     <section className="space-y-6">
       <header className="space-y-2">
-        <h1 className="text-2xl font-semibold">把你正在读的日文贴进来</h1>
+        <h1 className="text-2xl font-semibold">书架与片段精读</h1>
         <p data-testid="library-intro" className="text-sm text-zinc-600 dark:text-zinc-300">
-          推荐贴一段你<strong>最近读不顺</strong>的真实内容：轻小说、NHK 新闻、JLPT 阅读、播客文字稿都可以。
-          我们不提供文章库，只处理你自己带来的内容。导入后会自动分句、分词，然后跳转到阅读器。
+          先从公共领域名著里选一段，或贴一段你<strong>最近读不顺</strong>的真实内容：
+          轻小说、NHK 新闻、JLPT 阅读、播客文字稿都可以。导入后会自动分句、分词，然后跳转到阅读器。
         </p>
         <p className="text-xs text-zinc-500">目前仅支持 <code>text</code> 与 <code>epub</code> 两种来源。URL 抓取与 OCR 暂未开放。</p>
       </header>
+
+      <div className="rounded-lg border border-stone-200 bg-stone-50 p-5 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-stone-500">Public domain shelf</p>
+            <h2 className="mt-1 text-lg font-semibold">默认书架</h2>
+          </div>
+          <p className="text-xs text-zinc-500">来源标注为青空文庫，第一版先导入节选精读。</p>
+        </div>
+        <div data-testid="public-bookshelf" className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {PUBLIC_BOOKS.map((book) => {
+            const isImporting = createMutation.isPending && createMutation.variables?.title === book.title;
+            return (
+              <div key={book.slug} className="flex min-h-[220px] flex-col rounded-md border border-stone-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-950">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-semibold">{book.title}</h3>
+                    <p className="mt-1 text-xs text-zinc-500">{book.author}</p>
+                  </div>
+                  <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-700 dark:bg-zinc-800 dark:text-zinc-300">
+                    {book.level}
+                  </span>
+                </div>
+                <p className="mt-3 flex-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{book.description}</p>
+                <div className="mt-4 flex items-center justify-between gap-2 text-xs text-zinc-500">
+                  <a href={book.sourceUrl} target="_blank" rel="noreferrer" className="hover:underline">
+                    {book.sourceLabel}
+                  </a>
+                  <span>{book.readingTime}</span>
+                </div>
+                <button
+                  type="button"
+                  data-testid={`public-book-start-${book.slug}`}
+                  className="mt-3 rounded-md bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-700 disabled:opacity-60"
+                  disabled={createMutation.isPending}
+                  onClick={() =>
+                    createMutation.mutate({
+                      title: book.title,
+                      source_type: "text",
+                      raw_content: book.excerpt,
+                    })
+                  }
+                >
+                  {isImporting ? "打开中..." : "开始精读"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {!hasArticles && !articlesQuery.isLoading ? (
         <div
@@ -119,7 +165,11 @@ export default function LibraryPage() {
           className="mt-4 space-y-4"
           onSubmit={(event) => {
             event.preventDefault();
-            createMutation.mutate();
+            createMutation.mutate({
+              title,
+              source_type: sourceType,
+              raw_content: sourceType === "epub" ? epubPayload : rawContent,
+            });
           }}
         >
           <label className="block text-sm">
