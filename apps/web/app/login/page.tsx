@@ -13,6 +13,8 @@ export default function LoginPage() {
   const [email, setEmail] = useState("demo@example.com");
   const [password, setPassword] = useState("password123");
   const [mode, setMode] = useState<"login" | "register">("login");
+  const [clientError, setClientError] = useState("");
+  const passwordRuleMessage = "密码至少 8 个字符，最多 128 个字符。";
 
   const mutation = useMutation({
     mutationFn: async () => {
@@ -36,6 +38,11 @@ export default function LoginPage() {
         className="mt-6 space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
+          if (password.length < 8 || password.length > 128) {
+            setClientError(passwordRuleMessage);
+            return;
+          }
+          setClientError("");
           mutation.mutate();
         }}
       >
@@ -56,12 +63,19 @@ export default function LoginPage() {
             data-testid="login-password"
             className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
             type="password"
+            maxLength={128}
+            required
             value={password}
-            onChange={(event) => setPassword(event.target.value)}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setClientError("");
+            }}
           />
+          {mode === "register" ? <span className="mt-1 block text-xs text-zinc-500">{passwordRuleMessage}</span> : null}
         </label>
 
-        {mutation.isError ? <p className="text-sm text-red-600">{(mutation.error as Error).message}</p> : null}
+        {clientError ? <p className="text-sm text-red-600">{clientError}</p> : null}
+        {!clientError && mutation.isError ? <p className="text-sm text-red-600">{(mutation.error as Error).message}</p> : null}
 
         <div className="flex items-center gap-3">
           <Button data-testid="login-submit" type="submit" disabled={mutation.isPending}>
@@ -70,7 +84,11 @@ export default function LoginPage() {
           <Button
             type="button"
             variant="secondary"
-            onClick={() => setMode(mode === "login" ? "register" : "login")}
+            onClick={() => {
+              setMode(mode === "login" ? "register" : "login");
+              setClientError("");
+              mutation.reset();
+            }}
           >
             切换到{mode === "login" ? "注册" : "登录"}
           </Button>
