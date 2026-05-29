@@ -94,6 +94,65 @@ export default function LibraryPage() {
         <p className="text-xs text-zinc-500">目前仅支持 <code>text</code> 与 <code>epub</code> 两种来源。URL 抓取与 OCR 暂未开放。</p>
       </header>
 
+      <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex items-end justify-between gap-3">
+          <div>
+            <p className="text-xs font-medium uppercase tracking-wider text-stone-500">My shelf</p>
+            <h2 className="mt-1 text-lg font-semibold">我的书架</h2>
+          </div>
+          {hasArticles ? <span className="text-xs text-zinc-500">{articles?.length} 篇已导入</span> : null}
+        </div>
+
+        <div data-testid="article-list" className="mt-4 space-y-3">
+          {articlesQuery.isLoading ? <p className="text-sm">加载中...</p> : null}
+          {articlesQuery.isError ? <p className="text-sm text-red-600">{(articlesQuery.error as Error).message}</p> : null}
+
+          {articles?.map((article) => (
+            <div
+              key={article.id}
+              data-testid="article-list-item"
+              className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
+            >
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="font-medium">{article.title}</p>
+                  <p className="text-xs text-zinc-500">{new Date(article.created_at).toLocaleString()}</p>
+                  <p className="mt-1 text-xs">状态：{statusLabel(article.status)}</p>
+                  {article.processing_error ? <p className="text-xs text-red-600">{article.processing_error}</p> : null}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/reader/${article.id}`}
+                    className={`rounded-md border px-3 py-1 text-sm ${article.status !== "ready" ? "pointer-events-none opacity-50" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+                  >
+                    继续阅读
+                  </Link>
+                  <button
+                    className="rounded-md border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950"
+                    onClick={() => deleteMutation.mutate(article.id)}
+                  >
+                    删除
+                  </button>
+                </div>
+              </div>
+            </div>
+          ))}
+
+          {!hasArticles && !articlesQuery.isLoading ? (
+            <div
+              data-testid="library-empty-state"
+              className="rounded-lg border border-dashed border-brand-300 bg-brand-50/40 p-4 text-sm dark:border-brand-700 dark:bg-brand-900/20"
+            >
+              <p className="font-medium">还没有导入过内容。</p>
+              <p className="mt-1 text-zinc-600 dark:text-zinc-300">
+                下一步：从下面的公共书架点「开始精读」，或把你最近读不顺的一段日文粘贴到下面的导入框。
+              </p>
+            </div>
+          ) : null}
+        </div>
+      </div>
+
       <div className="rounded-lg border border-stone-200 bg-stone-50 p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
@@ -143,18 +202,6 @@ export default function LibraryPage() {
           })}
         </div>
       </div>
-
-      {!hasArticles && !articlesQuery.isLoading ? (
-        <div
-          data-testid="library-empty-state"
-          className="rounded-xl border border-dashed border-brand-300 bg-brand-50/40 p-5 text-sm dark:border-brand-700 dark:bg-brand-900/20"
-        >
-          <p className="font-medium">还没有导入过内容。</p>
-          <p className="mt-1 text-zinc-600 dark:text-zinc-300">
-            打开你最近正在读、但卡住的那段日文，复制粘贴到下面的「正文」里，点击「导入并开始阅读」即可。
-          </p>
-        </div>
-      ) : null}
 
       <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="font-medium">导入一段日文</h2>
@@ -253,45 +300,6 @@ export default function LibraryPage() {
         </form>
       </div>
 
-      <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="font-medium">已导入的内容</h2>
-        <div className="mt-4 space-y-3">
-          {articlesQuery.isLoading ? <p className="text-sm">加载中...</p> : null}
-          {articlesQuery.isError ? <p className="text-sm text-red-600">{(articlesQuery.error as Error).message}</p> : null}
-
-          {articles?.map((article) => (
-            <div key={article.id} className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-medium">{article.title}</p>
-                  <p className="text-xs text-zinc-500">{new Date(article.created_at).toLocaleString()}</p>
-                  <p className="mt-1 text-xs">状态：{statusLabel(article.status)}</p>
-                  {article.processing_error ? <p className="text-xs text-red-600">{article.processing_error}</p> : null}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <Link
-                    href={`/reader/${article.id}`}
-                    className={`rounded-md border px-3 py-1 text-sm ${article.status !== "ready" ? "pointer-events-none opacity-50" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
-                  >
-                    继续阅读
-                  </Link>
-                  <button
-                    className="rounded-md border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950"
-                    onClick={() => deleteMutation.mutate(article.id)}
-                  >
-                    删除
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))}
-
-          {hasArticles ? null : !articlesQuery.isLoading ? (
-            <p className="text-sm text-zinc-500">还没有导入内容。先在上面贴一段你正在读的日文。</p>
-          ) : null}
-        </div>
-      </div>
     </section>
   );
 }
