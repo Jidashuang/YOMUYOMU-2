@@ -70,7 +70,7 @@ export default function HomePage() {
               <Link
                 href="/library"
                 data-testid="home-cta-import"
-                className="rounded-md bg-brand-600 px-4 py-2 text-sm text-white hover:bg-brand-700"
+                className="rounded-md bg-brand-500 px-4 py-2 text-sm text-white hover:bg-brand-700"
               >
                 打开书架 / 粘贴片段
               </Link>
