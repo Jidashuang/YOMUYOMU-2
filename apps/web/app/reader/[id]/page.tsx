@@ -28,11 +28,15 @@ import {
   BookmarkIcon,
   LibraryIcon,
   ReaderShell,
+  ThemeIcon,
+  TypographyIcon,
   VocabIcon,
   type ReaderActivityItem,
   type ReaderPanelDef,
   type ReaderPanelKey,
 } from "./components/ReaderShell";
+import { ThemePanel } from "./components/ThemePanel";
+import { TypographyPanel } from "./components/TypographyPanel";
 import { sentenceContextFromBlock } from "./components/reader-utils";
 import { TokenPopup } from "./components/TokenPopup";
 import type { SelectedTokenState, SelectionMenuState } from "./components/types";
@@ -266,6 +270,22 @@ export default function ReaderPage() {
       testId: "reader-activity-highlights",
     },
     {
+      key: "typography",
+      label: "排版",
+      icon: <TypographyIcon />,
+      kind: "panel",
+      panelKey: "typography",
+      testId: "reader-activity-typography",
+    },
+    {
+      key: "theme",
+      label: "主题",
+      icon: <ThemeIcon />,
+      kind: "panel",
+      panelKey: "theme",
+      testId: "reader-activity-theme",
+    },
+    {
       key: "vocab",
       label: "生词",
       icon: <VocabIcon />,
@@ -286,6 +306,16 @@ export default function ReaderPage() {
           onUpdateNote={(highlightId, note) => updateNoteMutation.mutate({ highlightId, note })}
         />
       ),
+    },
+    {
+      key: "typography",
+      title: "排版",
+      content: <TypographyPanel />,
+    },
+    {
+      key: "theme",
+      title: "主题",
+      content: <ThemePanel />,
     },
   ];
 
