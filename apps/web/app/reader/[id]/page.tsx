@@ -234,7 +234,8 @@ export default function ReaderPage() {
   }
 
   return (
-    <section className="relative space-y-4">
+    <section className="relative">
+      <div className="mx-auto w-full max-w-3xl space-y-4">
       <header className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold">原文精读</h1>
@@ -272,11 +273,13 @@ export default function ReaderPage() {
         </div>
       </header>
 
-      {articleQuery.data ? (
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-sm">status: {articleQuery.data.status}</p>
+      {articleQuery.data && articleQuery.data.status !== "ready" ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/20">
+          <p className="font-medium">
+            {articleQuery.data.status === "processing" ? "正在处理这篇文章…" : "这篇文章尚未就绪"}
+          </p>
           {articleQuery.data.processing_error ? (
-            <p className="text-xs text-red-600">{articleQuery.data.processing_error}</p>
+            <p className="mt-1 text-xs text-red-600">{articleQuery.data.processing_error}</p>
           ) : null}
         </div>
       ) : null}
@@ -313,7 +316,6 @@ export default function ReaderPage() {
           {highlightsQuery.data?.map((item) => (
             <div data-testid="highlight-item" key={item.id} className="rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
               <p className="text-sm">{item.text_quote}</p>
-              <p className="mt-1 text-xs text-zinc-500">block: {item.block_id}</p>
               <div className="mt-2 flex items-center gap-2">
                 <input
                   className="w-full rounded border border-zinc-300 bg-transparent px-2 py-1 text-sm dark:border-zinc-700"
@@ -342,6 +344,7 @@ export default function ReaderPage() {
           saveSuggestedVocabMutation.mutate(item);
         }}
       />
+      </div>
 
       <TokenPopup
         selectedToken={selectedToken}
