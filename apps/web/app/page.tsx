@@ -47,7 +47,7 @@ export default function HomePage() {
           <p className="text-xs font-medium uppercase tracking-wider text-brand-700 dark:text-brand-300">
             Genbun · 日文原文阅读工作台
           </p>
-          <h1 data-testid="home-headline" className="mt-3 max-w-3xl text-3xl font-semibold leading-tight sm:text-5xl">
+          <h1 data-testid="home-headline" className="mt-3 max-w-3xl text-3xl font-semibold leading-tight sm:text-4xl">
             为 N2-N1 学习者准备的原文精读工作台
           </h1>
           <p data-testid="home-subhead" className="mt-4 max-w-3xl text-base leading-7 text-zinc-600 dark:text-zinc-300">
@@ -55,20 +55,13 @@ export default function HomePage() {
             再把值得记住的词放进生词本复习。
           </p>
 
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            {[
-              ["N2-N1 主力", "长句、抽象词、文学表达，不再靠来回切工具硬啃。"],
-              ["N3 过渡可用", "把标注范围调到 N3+，先看真正影响理解的词。"],
-              ["原文优先", "公共领域名著和你自己粘贴的片段，都进入同一套阅读流程。"],
-            ].map(([title, body]) => (
-              <div key={title} className="rounded-md border border-stone-200 bg-white/80 p-3 dark:border-zinc-700 dark:bg-zinc-950/50">
-                <p className="font-medium">{title}</p>
-                <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">{body}</p>
-              </div>
-            ))}
+          <div className="mt-4 flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300">
+            <span className="rounded-full border border-stone-200 px-2.5 py-1 dark:border-zinc-700">N2-N1 主力</span>
+            <span className="rounded-full border border-stone-200 px-2.5 py-1 dark:border-zinc-700">N3 过渡可用</span>
+            <span className="rounded-full border border-stone-200 px-2.5 py-1 dark:border-zinc-700">原文优先</span>
           </div>
 
-          <div className="mt-7 rounded-lg border border-dashed border-brand-300 bg-brand-50/45 p-4 dark:border-brand-700 dark:bg-brand-950/20">
+          <div className="mt-6 rounded-lg border border-dashed border-brand-300 bg-brand-50/45 p-4 dark:border-brand-700 dark:bg-brand-950/20">
             <p className="text-sm font-medium">今天要读什么？</p>
             <p className="mt-1 text-sm leading-6 text-zinc-600 dark:text-zinc-300">
               直接从左侧书架选一篇公共领域作品，或把你正在读的轻小说、新闻、论文摘要、JLPT 阅读片段贴进来。
