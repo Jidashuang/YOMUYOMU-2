@@ -25,14 +25,18 @@ export function Providers({ children }: ProvidersProps) {
         },
       })
   );
-  const { theme, fontSize, lineHeight } = useUISettingsStore();
+  const { theme, fontSize, lineHeight, measure, readerTheme } = useUISettingsStore();
 
   useEffect(() => {
     const root = document.documentElement;
-    root.classList.toggle("dark", theme === "dark");
+    // The reader's "dark" theme also drives the global dark class so that the
+    // chrome and the fixed token/highlight popups stay visually consistent.
+    root.classList.toggle("dark", theme === "dark" || readerTheme === "dark");
+    root.dataset.readerTheme = readerTheme;
     root.style.setProperty("--reader-font-size", `${fontSize}px`);
     root.style.setProperty("--reader-line-height", `${lineHeight}`);
-  }, [theme, fontSize, lineHeight]);
+    root.style.setProperty("--reader-measure", `${measure}rem`);
+  }, [theme, fontSize, lineHeight, measure, readerTheme]);
 
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>;
 }

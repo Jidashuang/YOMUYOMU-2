@@ -117,8 +117,8 @@ export function ReaderArticleView({
   }
 
   return (
-    <article data-testid="reader-article-view" className="reader-text rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
-      <div ref={articleContainerRef} className="space-y-6" onMouseUp={handleSelectionMenu}>
+    <article data-testid="reader-article-view" className="reader-text reader-surface rounded-2xl border p-6 shadow-sm sm:p-8">
+      <div ref={articleContainerRef} className="reader-measure space-y-6" onMouseUp={handleSelectionMenu}>
         {blocks.map((block) => (
           <p key={block.id} className="leading-relaxed">
             {block.tokens.length > 0
