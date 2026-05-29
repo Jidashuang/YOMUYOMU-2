@@ -30,6 +30,13 @@ export function HighlightMenu({
       data-testid="highlight-menu"
       className="fixed z-30 w-[360px] max-w-[calc(100vw-16px)] -translate-x-1/2 rounded-xl border border-zinc-200 bg-white p-3 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
       style={{ left: selectionMenu.x, top: selectionMenu.y }}
+      // Keep the floating menu anchored to the live text selection: a mousedown on the
+      // menu would otherwise collapse the document selection and shift focus, which makes
+      // the just-rendered buttons jitter/detach before the click lands (Playwright reports
+      // "element is not stable / detached"). preventDefault keeps the gesture from mutating
+      // the selection; the click still fires, and the handlers use selectionMenu state so
+      // no data flow changes. Position stays fixed/viewport-relative (no transform here).
+      onMouseDown={(event) => event.preventDefault()}
     >
       <p className="mb-2 text-xs text-zinc-500">{selectionMenu.textQuote}</p>
       <div className="flex flex-wrap gap-2 text-sm">
