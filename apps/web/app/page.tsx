@@ -51,7 +51,7 @@ export default function HomePage() {
             为 N2-N1 学习者准备的原文精读工作台
           </h1>
           <p data-testid="home-subhead" className="mt-4 max-w-3xl text-base leading-7 text-zinc-600 dark:text-zinc-300">
-            从一段读不顺的日文开始：选择 N3+、N2+ 或 N1 难词标注，点词查义，选句让 AI 中文拆解，
+            从一段读不顺的日文开始：选择 N3+、N2+ 或 N1 三档高亮，点词查义，选句让 AI 中文拆解，
             再把值得记住的词放进生词本复习。
           </p>
 
