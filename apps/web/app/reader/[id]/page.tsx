@@ -28,6 +28,7 @@ import {
   BookmarkIcon,
   LibraryIcon,
   ReaderShell,
+  SearchIcon,
   ThemeIcon,
   TypographyIcon,
   VocabIcon,
@@ -35,6 +36,7 @@ import {
   type ReaderPanelDef,
   type ReaderPanelKey,
 } from "./components/ReaderShell";
+import { SearchPanel } from "./components/SearchPanel";
 import { ThemePanel } from "./components/ThemePanel";
 import { TypographyPanel } from "./components/TypographyPanel";
 import { sentenceContextFromBlock } from "./components/reader-utils";
@@ -250,6 +252,26 @@ export default function ReaderPage() {
   }
 
   const highlightCount = highlightsQuery.data?.length ?? 0;
+  const articleBlocks = articleQuery.data?.blocks ?? [];
+
+  const handleSearchJump = (blockId: string) => {
+    if (typeof document === "undefined") {
+      return;
+    }
+    const target = document.getElementById(`reader-block-${blockId}`);
+    if (!target) {
+      return;
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    // Transient flash applied imperatively so the article (and its token spans / live
+    // text selection) is not re-rendered by React.
+    target.classList.add("reader-block-flash");
+    window.setTimeout(() => target.classList.remove("reader-block-flash"), 1200);
+    // On mobile the panel is a full overlay; close it so the jump is visible.
+    if (window.matchMedia("(max-width: 767px)").matches) {
+      setActivePanel(null);
+    }
+  };
 
   const activityItems: ReaderActivityItem[] = [
     {
@@ -259,6 +281,14 @@ export default function ReaderPage() {
       kind: "link",
       href: "/library",
       testId: "reader-activity-library",
+    },
+    {
+      key: "search",
+      label: "搜索",
+      icon: <SearchIcon />,
+      kind: "panel",
+      panelKey: "search",
+      testId: "reader-activity-search",
     },
     {
       key: "highlights",
@@ -296,6 +326,11 @@ export default function ReaderPage() {
   ];
 
   const panelDefs: ReaderPanelDef[] = [
+    {
+      key: "search",
+      title: "搜索",
+      content: <SearchPanel blocks={articleBlocks} onJump={handleSearchJump} />,
+    },
     {
       key: "highlights",
       title: "收藏句",

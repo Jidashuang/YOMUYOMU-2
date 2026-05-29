@@ -120,7 +120,7 @@ export function ReaderArticleView({
     <article data-testid="reader-article-view" className="reader-text reader-surface rounded-2xl border p-6 shadow-sm sm:p-8">
       <div ref={articleContainerRef} className="reader-measure space-y-6" onMouseUp={handleSelectionMenu}>
         {blocks.map((block) => (
-          <p key={block.id} className="leading-relaxed">
+          <p key={block.id} id={`reader-block-${block.id}`} className="scroll-mt-24 leading-relaxed">
             {block.tokens.length > 0
               ? block.tokens.map((token: ArticleToken, tokenIndex: number) => {
                   const highlighted = tokenHasHighlight(block.id, token, highlightsByBlock);
