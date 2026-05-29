@@ -65,6 +65,10 @@ function ActivityBadge({ count }: { count?: number }) {
 export function ReaderShell({ items, panels, activePanel, onSelectPanel, children }: ReaderShellProps) {
   const renderActivityButton = (item: ReaderActivityItem, layout: "rail" | "bar") => {
     const active = item.kind === "panel" && item.panelKey === activePanel;
+    // Desktop rail keeps the canonical reader-activity-* test ids; the mobile toolbar
+    // renders the same items, so it must use distinct ids to avoid Playwright strict-mode
+    // duplicate matches even while the toolbar is hidden.
+    const testId = layout === "rail" ? item.testId : `reader-mobile-activity-${item.key}`;
     const sizing = layout === "rail" ? "h-12 w-12" : "h-full min-w-0 flex-1 py-1.5";
     const stateClasses = active
       ? "bg-white text-brand-700 shadow-sm dark:bg-zinc-800 dark:text-brand-100"
@@ -85,7 +89,7 @@ export function ReaderShell({ items, panels, activePanel, onSelectPanel, childre
         <Link
           key={item.key}
           href={item.href}
-          data-testid={item.testId}
+          data-testid={testId}
           title={item.label}
           aria-label={item.label}
           className={cn(railButtonBase, sizing, stateClasses)}
@@ -99,7 +103,7 @@ export function ReaderShell({ items, panels, activePanel, onSelectPanel, childre
       <button
         key={item.key}
         type="button"
-        data-testid={item.testId}
+        data-testid={testId}
         title={item.label}
         aria-label={item.label}
         aria-pressed={active}
