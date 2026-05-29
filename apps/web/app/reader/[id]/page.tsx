@@ -21,8 +21,18 @@ import {
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { ExplanationPanel } from "./components/ExplanationPanel";
 import { HighlightMenu } from "./components/HighlightMenu";
+import { HighlightsPanel } from "./components/HighlightsPanel";
 import { ProgressBar } from "./components/ProgressBar";
 import { ReaderArticleView } from "./components/ReaderArticleView";
+import {
+  BookmarkIcon,
+  LibraryIcon,
+  ReaderShell,
+  VocabIcon,
+  type ReaderActivityItem,
+  type ReaderPanelDef,
+  type ReaderPanelKey,
+} from "./components/ReaderShell";
 import { sentenceContextFromBlock } from "./components/reader-utils";
 import { TokenPopup } from "./components/TokenPopup";
 import type { SelectedTokenState, SelectionMenuState } from "./components/types";
@@ -48,6 +58,7 @@ export default function ReaderPage() {
   const [latestAi, setLatestAi] = useState<AIExplanationResponse | null>(null);
   const [addingSuggestedKey, setAddingSuggestedKey] = useState<string | null>(null);
   const [annotationLevel, setAnnotationLevel] = useState<AnnotationLevel>("N2");
+  const [activePanel, setActivePanel] = useState<ReaderPanelKey | null>(null);
 
   const articleQuery = useQuery({
     queryKey: ["article", articleId],
@@ -146,6 +157,7 @@ export default function ReaderPage() {
       queryClient.invalidateQueries({ queryKey: ["highlights", articleId] });
       setSelectionMenu(null);
       window.getSelection()?.removeAllRanges();
+      setActivePanel("highlights");
     },
   });
 
@@ -233,9 +245,59 @@ export default function ReaderPage() {
     );
   }
 
+  const highlightCount = highlightsQuery.data?.length ?? 0;
+
+  const activityItems: ReaderActivityItem[] = [
+    {
+      key: "library",
+      label: "书架",
+      icon: <LibraryIcon />,
+      kind: "link",
+      href: "/library",
+      testId: "reader-activity-library",
+    },
+    {
+      key: "highlights",
+      label: "收藏句",
+      icon: <BookmarkIcon />,
+      kind: "panel",
+      panelKey: "highlights",
+      badge: highlightCount,
+      testId: "reader-activity-highlights",
+    },
+    {
+      key: "vocab",
+      label: "生词",
+      icon: <VocabIcon />,
+      kind: "link",
+      href: "/vocab",
+      testId: "reader-activity-vocab",
+    },
+  ];
+
+  const panelDefs: ReaderPanelDef[] = [
+    {
+      key: "highlights",
+      title: "收藏句",
+      content: (
+        <HighlightsPanel
+          highlights={highlightsQuery.data}
+          isLoading={highlightsQuery.isLoading}
+          onUpdateNote={(highlightId, note) => updateNoteMutation.mutate({ highlightId, note })}
+        />
+      ),
+    },
+  ];
+
   return (
     <section className="relative">
-      <div className="mx-auto w-full max-w-3xl space-y-4">
+      <ReaderShell
+        items={activityItems}
+        panels={panelDefs}
+        activePanel={activePanel}
+        onSelectPanel={setActivePanel}
+      >
+        <div className="mx-auto w-full max-w-3xl space-y-5">
       <header className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold">原文精读</h1>
@@ -309,31 +371,6 @@ export default function ReaderPage() {
 
       {selectionError ? <p className="text-xs text-red-600">{selectionError}</p> : null}
 
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <h3 className="font-semibold">已收藏的句子</h3>
-        <p className="mt-1 text-xs text-zinc-500">划线后选「加入收藏」会把整句存到这里，方便复看。</p>
-        <div data-testid="highlight-list" className="mt-3 space-y-3">
-          {highlightsQuery.data?.map((item) => (
-            <div data-testid="highlight-item" key={item.id} className="rounded-md border border-zinc-200 p-3 dark:border-zinc-700">
-              <p className="text-sm">{item.text_quote}</p>
-              <div className="mt-2 flex items-center gap-2">
-                <input
-                  className="w-full rounded border border-zinc-300 bg-transparent px-2 py-1 text-sm dark:border-zinc-700"
-                  defaultValue={item.note ?? ""}
-                  placeholder="note"
-                  onBlur={(event) => {
-                    updateNoteMutation.mutate({ highlightId: item.id, note: event.target.value });
-                  }}
-                />
-              </div>
-            </div>
-          ))}
-          {highlightsQuery.data && highlightsQuery.data.length === 0 ? (
-            <p className="text-sm text-zinc-500">还没有收藏的句子。</p>
-          ) : null}
-        </div>
-      </div>
-
       <ExplanationPanel
         latestAi={latestAi}
         history={aiHistoryQuery.data}
@@ -344,7 +381,8 @@ export default function ReaderPage() {
           saveSuggestedVocabMutation.mutate(item);
         }}
       />
-      </div>
+        </div>
+      </ReaderShell>
 
       <TokenPopup
         selectedToken={selectedToken}
