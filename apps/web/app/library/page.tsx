@@ -16,6 +16,12 @@ function statusLabel(status: string) {
   return "处理中";
 }
 
+function statusTone(status: string) {
+  if (status === "ready") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200";
+  if (status === "failed") return "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-200";
+  return "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200";
+}
+
 // Target-user sample: a short slice from a light-novel-flavored passage that
 // includes vocabulary and grammar typically tripping up N2-N1 readers.
 const SAMPLE_TITLE = "示例 · 你最近读不顺的一段（替换成你自己的）";
@@ -87,18 +93,22 @@ export default function LibraryPage() {
     <section className="space-y-6">
       <header className="space-y-2">
         <h1 className="text-2xl font-semibold">书架与片段精读</h1>
-        <p data-testid="library-intro" className="text-sm text-zinc-600 dark:text-zinc-300">
+        <p data-testid="library-intro" className="max-w-3xl text-sm text-zinc-600 dark:text-zinc-300">
           先从公共领域名著里选一段，或贴一段你<strong>最近读不顺</strong>的真实内容：
           轻小说、NHK 新闻、JLPT 阅读、播客文字稿都可以。导入后会自动分句、分词，然后跳转到阅读器。
         </p>
-        <p className="text-xs text-zinc-500">目前仅支持 <code>text</code> 与 <code>epub</code> 两种来源。URL 抓取与 OCR 暂未开放。</p>
+        <p className="text-xs text-zinc-500">
+          目前仅支持 <code className="rounded bg-stone-200 px-1 dark:bg-zinc-800">text</code> 与{" "}
+          <code className="rounded bg-stone-200 px-1 dark:bg-zinc-800">epub</code> 两种来源。URL 抓取与 OCR 暂未开放。
+        </p>
       </header>
 
-      <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
+      {/* 我的书架优先 */}
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-stone-500">My shelf</p>
-            <h2 className="mt-1 text-lg font-semibold">我的书架</h2>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-stone-500">My shelf</p>
+            <h2 className="mt-0.5 text-lg font-semibold">我的书架</h2>
           </div>
           {hasArticles ? <span className="text-xs text-zinc-500">{articles?.length} 篇已导入</span> : null}
         </div>
@@ -111,20 +121,28 @@ export default function LibraryPage() {
             <div
               key={article.id}
               data-testid="article-list-item"
-              className="rounded-lg border border-zinc-200 px-3 py-2 dark:border-zinc-700"
+              className="rounded-xl border border-stone-200 bg-stone-50/60 px-4 py-3 transition hover:border-stone-300 dark:border-zinc-700 dark:bg-zinc-950"
             >
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <p className="font-medium">{article.title}</p>
-                  <p className="text-xs text-zinc-500">{new Date(article.created_at).toLocaleString()}</p>
-                  <p className="mt-1 text-xs">状态：{statusLabel(article.status)}</p>
-                  {article.processing_error ? <p className="text-xs text-red-600">{article.processing_error}</p> : null}
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="truncate font-medium">{article.title}</p>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${statusTone(article.status)}`}>
+                      {statusLabel(article.status)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-xs text-zinc-500">{new Date(article.created_at).toLocaleString()}</p>
+                  {article.processing_error ? <p className="mt-1 text-xs text-red-600">{article.processing_error}</p> : null}
                 </div>
 
                 <div className="flex items-center gap-2">
                   <Link
                     href={`/reader/${article.id}`}
-                    className={`rounded-md border px-3 py-1 text-sm ${article.status !== "ready" ? "pointer-events-none opacity-50" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+                    className={`rounded-md border px-3 py-1 text-sm ${
+                      article.status !== "ready"
+                        ? "pointer-events-none opacity-50"
+                        : "border-stone-300 hover:bg-stone-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    }`}
                   >
                     继续阅读
                   </Link>
@@ -142,36 +160,41 @@ export default function LibraryPage() {
           {!hasArticles && !articlesQuery.isLoading ? (
             <div
               data-testid="library-empty-state"
-              className="rounded-lg border border-dashed border-brand-300 bg-brand-50/40 p-4 text-sm dark:border-brand-700 dark:bg-brand-900/20"
+              className="rounded-xl border border-dashed border-brand-300 bg-brand-50/40 p-4 text-sm dark:border-brand-700 dark:bg-brand-900/20"
             >
               <p className="font-medium">还没有导入过内容。</p>
               <p className="mt-1 text-zinc-600 dark:text-zinc-300">
-                下一步：从下面的公共书架点「开始精读」，或把你最近读不顺的一段日文粘贴到下面的导入框。
+                下一步：从下面的默认书架点「开始精读」，或把你最近读不顺的一段日文粘贴到下面的导入框。
               </p>
             </div>
           ) : null}
         </div>
       </div>
 
-      <div className="rounded-lg border border-stone-200 bg-stone-50 p-5 dark:border-zinc-800 dark:bg-zinc-900">
+      {/* 公共书架与粘贴导入：清晰分区 */}
+      <div className="rounded-2xl border border-stone-200 bg-stone-50 p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
         <div className="flex flex-wrap items-end justify-between gap-3">
           <div>
-            <p className="text-xs font-medium uppercase tracking-wider text-stone-500">Public domain shelf</p>
-            <h2 className="mt-1 text-lg font-semibold">默认书架</h2>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-stone-500">Public domain shelf</p>
+            <h2 className="mt-0.5 text-lg font-semibold">默认书架</h2>
+            <p className="mt-1 text-xs text-zinc-500">不知道读什么时，从这里挑一段公共领域名著开始。</p>
           </div>
           <p className="text-xs text-zinc-500">来源标注为青空文庫，第一版先导入节选精读。</p>
         </div>
-        <div data-testid="public-bookshelf" className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div data-testid="public-bookshelf" className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {PUBLIC_BOOKS.map((book) => {
             const isImporting = createMutation.isPending && createMutation.variables?.title === book.title;
             return (
-              <div key={book.slug} className="flex min-h-[220px] flex-col rounded-md border border-stone-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-950">
+              <div
+                key={book.slug}
+                className="flex min-h-[220px] flex-col rounded-xl border border-stone-200 bg-white p-4 dark:border-zinc-700 dark:bg-zinc-950"
+              >
                 <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-semibold">{book.title}</h3>
+                  <div className="min-w-0">
+                    <h3 className="font-semibold leading-tight">{book.title}</h3>
                     <p className="mt-1 text-xs text-zinc-500">{book.author}</p>
                   </div>
-                  <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-700 dark:bg-zinc-800 dark:text-zinc-300">
+                  <span className="shrink-0 rounded-full bg-stone-100 px-2 py-0.5 text-[11px] text-stone-700 dark:bg-zinc-800 dark:text-zinc-300">
                     {book.level}
                   </span>
                 </div>
@@ -185,7 +208,7 @@ export default function LibraryPage() {
                 <button
                   type="button"
                   data-testid={`public-book-start-${book.slug}`}
-                  className="mt-3 rounded-md bg-brand-600 px-3 py-2 text-sm text-white hover:bg-brand-700 disabled:opacity-60"
+                  className="mt-3 rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
                   disabled={createMutation.isPending}
                   onClick={() =>
                     createMutation.mutate({
@@ -203,8 +226,8 @@ export default function LibraryPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="font-medium">导入一段日文</h2>
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <h2 className="font-semibold">导入一段日文</h2>
         <p className="mt-1 text-xs text-zinc-500">
           下面填的是示例段落，请替换成你自己手头的内容。一次只导入一段，便于你立刻读完它。
         </p>
@@ -299,7 +322,6 @@ export default function LibraryPage() {
           </button>
         </form>
       </div>
-
     </section>
   );
 }
