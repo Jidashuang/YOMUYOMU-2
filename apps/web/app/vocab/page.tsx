@@ -3,6 +3,7 @@
 import type { VocabItemResponse, VocabStatus } from "@yomuyomu/shared-types";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, type ReactNode } from "react";
 
 import {
   deleteVocab,
@@ -81,7 +82,11 @@ function VocabCard({
   return (
     <div
       data-testid="vocab-card"
-      className="rounded-md border border-zinc-200 p-3 dark:border-zinc-700"
+      className={`rounded-xl border bg-white p-3.5 transition dark:bg-zinc-900 ${
+        emphasizeReview
+          ? "border-stone-200 shadow-sm dark:border-zinc-700"
+          : "border-stone-200 hover:border-stone-300 dark:border-zinc-800 dark:hover:border-zinc-700"
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -111,25 +116,26 @@ function VocabCard({
         <p className="mt-2 text-xs text-zinc-500">下次复习：{formatNextReview(item.next_review_at)}</p>
       ) : null}
 
+      {onReview ? (
+        <div className="mt-3 flex gap-2 text-sm">
+          <button
+            data-testid="vocab-review-fail"
+            className="flex-1 rounded-md border border-red-300 px-3 py-2 font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
+            onClick={() => onReview(item.id, "fail")}
+          >
+            没记住
+          </button>
+          <button
+            data-testid="vocab-review-pass"
+            className="flex-1 rounded-md bg-emerald-500 px-3 py-2 font-medium text-white hover:bg-emerald-600"
+            onClick={() => onReview(item.id, "pass")}
+          >
+            想起来了
+          </button>
+        </div>
+      ) : null}
+
       <div className="mt-3 flex flex-wrap gap-2 text-xs">
-        {onReview ? (
-          <>
-            <button
-              data-testid="vocab-review-fail"
-              className="rounded border border-red-300 px-2 py-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40"
-              onClick={() => onReview(item.id, "fail")}
-            >
-              没记住
-            </button>
-            <button
-              data-testid="vocab-review-pass"
-              className="rounded bg-emerald-500 px-2 py-1 text-white hover:bg-emerald-600"
-              onClick={() => onReview(item.id, "pass")}
-            >
-              想起来了
-            </button>
-          </>
-        ) : null}
         {item.status !== "learning" ? (
           <button
             className="rounded border px-2 py-1"
@@ -167,9 +173,37 @@ function VocabCard({
   );
 }
 
+type LibraryTab = "today" | "learning" | "all";
+
+function VocabListBody({
+  items,
+  isLoading,
+  isError,
+  errorMessage,
+  emptyText,
+  renderCard,
+}: {
+  items?: VocabItemResponse[];
+  isLoading?: boolean;
+  isError?: boolean;
+  errorMessage?: string;
+  emptyText: string;
+  renderCard: (item: VocabItemResponse) => ReactNode;
+}) {
+  return (
+    <div className="mt-3 space-y-2">
+      {isLoading ? <p className="text-sm text-zinc-500">加载中...</p> : null}
+      {isError ? <p className="text-sm text-red-600">{errorMessage}</p> : null}
+      {items?.map((item) => renderCard(item))}
+      {items && items.length === 0 ? <p className="text-sm text-zinc-500">{emptyText}</p> : null}
+    </div>
+  );
+}
+
 export default function VocabPage() {
   const queryClient = useQueryClient();
   const { hydrated, isAuthorized } = useRequireAuth();
+  const [libraryTab, setLibraryTab] = useState<LibraryTab>("all");
 
   const allVocabQuery = useQuery({
     queryKey: ["vocab", "all"],
@@ -249,139 +283,166 @@ export default function VocabPage() {
   const dueItems = reviewDueQuery.data ?? [];
   const dueCount = dueItems.length;
 
+  const onUpdateStatus = (id: string, status: VocabStatus) => statusMutation.mutate({ id, status });
+
+  const libraryTabs: Array<{ key: LibraryTab; label: string; count?: number }> = [
+    { key: "today", label: "今日新增", count: todayNewQuery.data?.length },
+    { key: "learning", label: "学习中", count: unmasteredQuery.data?.length },
+    { key: "all", label: "全部", count: allVocabQuery.data?.length },
+  ];
+
   return (
     <section className="space-y-6">
-      <header className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold">生词本</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">
-            把阅读时遇到的词留下来 → 第二天回来花几分钟复习 → 再读到就认识了。
-          </p>
-        </div>
-
-        <div className="flex gap-2">
-          <button
-            className="rounded-md border px-3 py-2 text-sm"
-            onClick={() => exportCsvMutation.mutate()}
-            disabled={exportCsvMutation.isPending}
-          >
-            导出 CSV
-          </button>
-          <button
-            className="rounded-md border px-3 py-2 text-sm"
-            onClick={() => exportJsonMutation.mutate()}
-            disabled={exportJsonMutation.isPending}
-          >
-            导出 JSON
-          </button>
-        </div>
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold">复习工作台</h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">
+          把阅读时遇到的词留下来 → 第二天回来花几分钟复习 → 再读到就认识了。
+        </p>
       </header>
 
-      <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-xs text-zinc-500">今日查词</p>
-          <p className="mt-1 text-2xl font-semibold">{todayStatsQuery.data?.lookup_count ?? "-"}</p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-xs text-zinc-500">今日加入生词</p>
-          <p className="mt-1 text-2xl font-semibold">{todayStatsQuery.data?.vocab_added_count ?? "-"}</p>
-        </div>
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <p className="text-xs text-zinc-500">今日 AI 解释</p>
-          <p className="mt-1 text-2xl font-semibold">{todayStatsQuery.data?.ai_explanation_count ?? "-"}</p>
-        </div>
-      </div>
-      {todayStatsQuery.isError ? (
-        <p className="text-xs text-red-600">{(todayStatsQuery.error as Error).message}</p>
-      ) : null}
-
+      {/* 到期复习 — 第一视觉优先级 */}
       <div
         data-testid="vocab-due-section"
-        className="rounded-xl border-2 border-brand-300 bg-white p-5 shadow-sm dark:border-brand-700 dark:bg-zinc-900"
+        className="rounded-2xl border-2 border-brand-400 bg-white p-5 shadow-md dark:border-brand-600 dark:bg-zinc-900 sm:p-6"
       >
         <div className="flex items-baseline justify-between gap-3">
-          <div>
-            <h2 className="text-lg font-semibold">到期复习</h2>
+          <div className="min-w-0">
+            <h2 className="text-xl font-semibold">到期复习</h2>
             <p className="mt-1 text-xs text-zinc-500">
               {dueCount > 0
                 ? `今天有 ${dueCount} 个词等你回来。每个 5–10 秒，能记住就标「想起来了」。`
                 : "今天没有到期的词。继续读你手头那段日文，把新词留下来。"}
             </p>
           </div>
-          <span data-testid="vocab-due-count" className="rounded-full bg-brand-100 px-3 py-1 text-sm font-medium text-brand-700 dark:bg-brand-900/40 dark:text-brand-200">
+          <span
+            data-testid="vocab-due-count"
+            className="shrink-0 rounded-full bg-brand-500 px-3.5 py-1 text-base font-semibold text-white"
+          >
             {dueCount}
           </span>
         </div>
-        <div className="mt-4 space-y-2">
+
+        <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
           {dueItems.map((item) => (
             <VocabCard
               key={item.id}
               item={item}
               emphasizeReview
-              onUpdateStatus={(id, status) => statusMutation.mutate({ id, status })}
+              onUpdateStatus={onUpdateStatus}
               onReview={(id, result) => reviewMutation.mutate({ id, result })}
             />
           ))}
-          {reviewDueQuery.isLoading ? <p className="text-sm text-zinc-500">加载中...</p> : null}
-          {reviewDueQuery.data && reviewDueQuery.data.length === 0 ? (
-            <p className="text-sm text-zinc-500">回头有词到期时会出现在这里。</p>
-          ) : null}
         </div>
+        {reviewDueQuery.isLoading ? <p className="mt-3 text-sm text-zinc-500">加载中...</p> : null}
+        {reviewDueQuery.data && reviewDueQuery.data.length === 0 ? (
+          <p className="mt-3 text-sm text-zinc-500">回头有词到期时会出现在这里。</p>
+        ) : null}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="font-medium">今日新增</h2>
-          <p className="mt-1 text-xs text-zinc-500">今天阅读时刚加进来的词。</p>
-          <div className="mt-3 space-y-2">
-            {todayNewQuery.data?.map((item) => (
-              <VocabCard
-                key={item.id}
-                item={item}
-                onUpdateStatus={(id, status) => statusMutation.mutate({ id, status })}
-              />
-            ))}
-            {todayNewQuery.data && todayNewQuery.data.length === 0 ? (
-              <p className="text-sm text-zinc-500">今天还没有新增。</p>
-            ) : null}
+      {/* 今日统计 — 紧凑、次要 */}
+      <div className="grid grid-cols-3 gap-3">
+        {[
+          { label: "今日查词", value: todayStatsQuery.data?.lookup_count },
+          { label: "今日加入生词", value: todayStatsQuery.data?.vocab_added_count },
+          { label: "今日 AI 解释", value: todayStatsQuery.data?.ai_explanation_count },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-xl border border-stone-200 bg-stone-50/60 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-900"
+          >
+            <p className="truncate text-[11px] text-zinc-500">{stat.label}</p>
+            <p className="mt-0.5 text-lg font-semibold tabular-nums">{stat.value ?? "-"}</p>
+          </div>
+        ))}
+      </div>
+      {todayStatsQuery.isError ? (
+        <p className="text-xs text-red-600">{(todayStatsQuery.error as Error).message}</p>
+      ) : null}
+
+      {/* 我的生词库 — 今日新增 / 学习中 / 全部 收进 tab，避免列表堆叠 */}
+      <div className="rounded-2xl border border-stone-200 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-wider text-stone-500">My library</p>
+            <h2 className="mt-0.5 text-lg font-semibold">我的生词库</h2>
+          </div>
+          <div className="flex gap-2">
+            <button
+              className="rounded-md border border-stone-300 px-3 py-1.5 text-sm hover:bg-stone-50 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              onClick={() => exportCsvMutation.mutate()}
+              disabled={exportCsvMutation.isPending}
+            >
+              导出 CSV
+            </button>
+            <button
+              className="rounded-md border border-stone-300 px-3 py-1.5 text-sm hover:bg-stone-50 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              onClick={() => exportJsonMutation.mutate()}
+              disabled={exportJsonMutation.isPending}
+            >
+              导出 JSON
+            </button>
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-          <h2 className="font-medium">学习中（持续巩固）</h2>
-          <p className="mt-1 text-xs text-zinc-500">还没标为「已掌握」的词，会按节奏回到「到期复习」。</p>
-          <div className="mt-3 space-y-2">
-            {unmasteredQuery.data?.map((item) => (
+        <div className="mt-4 inline-flex flex-wrap gap-1 rounded-lg border border-stone-200 bg-stone-50 p-1 dark:border-zinc-700 dark:bg-zinc-950">
+          {libraryTabs.map((tab) => {
+            const active = libraryTab === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type="button"
+                aria-pressed={active}
+                onClick={() => setLibraryTab(tab.key)}
+                className={`rounded-md px-3 py-1.5 text-sm transition ${
+                  active
+                    ? "bg-white font-medium text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-100"
+                    : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"
+                }`}
+              >
+                {tab.label}
+                {typeof tab.count === "number" ? (
+                  <span className="ml-1.5 text-xs text-zinc-400">{tab.count}</span>
+                ) : null}
+              </button>
+            );
+          })}
+        </div>
+
+        {libraryTab === "today" ? (
+          <VocabListBody
+            items={todayNewQuery.data}
+            isLoading={todayNewQuery.isLoading}
+            emptyText="今天还没有新增。"
+            renderCard={(item) => <VocabCard key={item.id} item={item} onUpdateStatus={onUpdateStatus} />}
+          />
+        ) : null}
+
+        {libraryTab === "learning" ? (
+          <VocabListBody
+            items={unmasteredQuery.data}
+            isLoading={unmasteredQuery.isLoading}
+            emptyText="暂无。还没标为「已掌握」的词会出现在这里。"
+            renderCard={(item) => <VocabCard key={item.id} item={item} onUpdateStatus={onUpdateStatus} />}
+          />
+        ) : null}
+
+        {libraryTab === "all" ? (
+          <VocabListBody
+            items={allVocabQuery.data}
+            isLoading={allVocabQuery.isLoading}
+            isError={allVocabQuery.isError}
+            errorMessage={allVocabQuery.isError ? (allVocabQuery.error as Error).message : undefined}
+            emptyText="生词本为空。先去阅读器里点几个词，加进来。"
+            renderCard={(item) => (
               <VocabCard
                 key={item.id}
                 item={item}
-                onUpdateStatus={(id, status) => statusMutation.mutate({ id, status })}
+                onDelete={(id) => deleteMutation.mutate(id)}
+                onUpdateStatus={onUpdateStatus}
               />
-            ))}
-            {unmasteredQuery.data && unmasteredQuery.data.length === 0 ? (
-              <p className="text-sm text-zinc-500">暂无。</p>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-        <h2 className="font-medium">全部生词本</h2>
-        {allVocabQuery.isLoading ? <p className="mt-2 text-sm">加载中...</p> : null}
-        {allVocabQuery.isError ? <p className="mt-2 text-sm text-red-600">{(allVocabQuery.error as Error).message}</p> : null}
-        <div className="mt-3 space-y-2">
-          {allVocabQuery.data?.map((item) => (
-            <VocabCard
-              key={item.id}
-              item={item}
-              onDelete={(id) => deleteMutation.mutate(id)}
-              onUpdateStatus={(id, status) => statusMutation.mutate({ id, status })}
-            />
-          ))}
-          {allVocabQuery.data && allVocabQuery.data.length === 0 ? (
-            <p className="text-sm text-zinc-500">生词本为空。先去阅读器里点几个词，加进来。</p>
-          ) : null}
-        </div>
+            )}
+          />
+        ) : null}
       </div>
     </section>
   );
