@@ -59,6 +59,8 @@ export interface ArticleSummary {
   status: ArticleStatus;
   processing_error?: string | null;
   created_at: string;
+  processed_block_count: number;
+  total_block_count: number | null;
 }
 
 export interface ArticleToken {

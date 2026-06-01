@@ -1,6 +1,6 @@
 "use client";
 
-import type { ArticleCreateRequest, SourceType } from "@yomuyomu/shared-types";
+import type { ArticleCreateRequest, ArticleSummary, SourceType } from "@yomuyomu/shared-types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,9 +10,14 @@ import { createArticle, deleteArticle, listArticles } from "../../lib/api";
 import { PUBLIC_BOOKS } from "../../lib/public-books";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
-function statusLabel(status: string) {
-  if (status === "ready") return "已就绪";
-  if (status === "failed") return "处理失败";
+const MAX_EPUB_FILE_BYTES = 20 * 1024 * 1024;
+
+function statusLabel(article: ArticleSummary) {
+  if (article.status === "ready") return "已就绪";
+  if (article.status === "failed") return "处理失败";
+  if (article.total_block_count !== null) {
+    return `处理中 ${article.processed_block_count}/${article.total_block_count}`;
+  }
   return "处理中";
 }
 
@@ -82,6 +87,10 @@ export default function LibraryPage() {
       return;
     }
     setEpubFileName(file.name);
+    if (file.size > MAX_EPUB_FILE_BYTES) {
+      setEpubReadError("EPUB 文件超过 20MB 限制，请选择更小的文件。");
+      return;
+    }
     setIsReadingEpub(true);
     const reader = new FileReader();
     reader.onload = () => {
@@ -158,7 +167,7 @@ export default function LibraryPage() {
                   <div className="flex items-center gap-2">
                     <p className="truncate font-medium">{article.title}</p>
                     <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${statusTone(article.status)}`}>
-                      {statusLabel(article.status)}
+                      {statusLabel(article)}
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">{new Date(article.created_at).toLocaleString()}</p>
@@ -169,7 +178,7 @@ export default function LibraryPage() {
                   <Link
                     href={`/reader/${article.id}`}
                     className={`rounded-md border px-3 py-1 text-sm ${
-                      article.status !== "ready"
+                      article.status === "failed"
                         ? "pointer-events-none opacity-50"
                         : "border-stone-300 hover:bg-stone-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
                     }`}
@@ -350,6 +359,7 @@ export default function LibraryPage() {
           ) : (
             <div className="rounded-xl border border-dashed border-brand-300 bg-brand-50/40 p-4 text-sm dark:border-brand-700 dark:bg-brand-900/20">
               <p className="font-medium">EPUB 文件</p>
+              <p className="mt-1 text-xs text-zinc-500">支持常见小说 EPUB，单文件上限 20MB。</p>
               <label
                 htmlFor="epub-file-input"
                 role="button"

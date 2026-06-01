@@ -1,6 +1,6 @@
 "use client";
 
-import type { AIExplanationResponse, HighlightResponse, SuggestedVocabItem } from "@yomuyomu/shared-types";
+import type { AIExplanationResponse, ArticleDetail, HighlightResponse, SuggestedVocabItem } from "@yomuyomu/shared-types";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -51,6 +51,13 @@ const ANNOTATION_LEVELS: Array<{ value: AnnotationLevel; label: string; descript
   { value: "N1", label: "N1", description: "仅 N1" },
 ];
 
+function processingProgressText(article: ArticleDetail) {
+  if (article.total_block_count !== null) {
+    return `${article.processed_block_count}/${article.total_block_count}`;
+  }
+  return `${article.processed_block_count}`;
+}
+
 export default function ReaderPage() {
   const params = useParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -76,7 +83,7 @@ export default function ReaderPage() {
   const highlightsQuery = useQuery({
     queryKey: ["highlights", articleId],
     queryFn: () => listHighlights(articleId),
-    enabled: hydrated && isAuthorized && articleQuery.data?.status === "ready",
+    enabled: hydrated && isAuthorized && Boolean(articleQuery.data?.blocks.length),
   });
 
   const progressQuery = useQuery({
@@ -400,13 +407,27 @@ export default function ReaderPage() {
         </div>
       </header>
 
-      {articleQuery.data && articleQuery.data.status !== "ready" ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/20">
+      {articleQuery.data?.status === "processing" ? (
+        <div
+          data-testid="reader-processing-banner"
+          className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/20"
+        >
           <p className="font-medium">
-            {articleQuery.data.status === "processing" ? "正在处理这篇文章…" : "这篇文章尚未就绪"}
+            {articleQuery.data.source_type === "epub"
+              ? `整本 EPUB 正在继续处理：${processingProgressText(articleQuery.data)}`
+              : `正文正在处理：${processingProgressText(articleQuery.data)}`}
           </p>
+          <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
+            {articleBlocks.length > 0 ? "已处理出来的正文会先显示，页面会自动刷新后续内容。" : "还没有生成可读正文，请稍等，页面会自动刷新。"}
+          </p>
+        </div>
+      ) : null}
+
+      {articleQuery.data?.status === "failed" ? (
+        <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-200">
+          <p className="font-medium">这篇文章处理失败</p>
           {articleQuery.data.processing_error ? (
-            <p className="mt-1 text-xs text-red-600">{articleQuery.data.processing_error}</p>
+            <p className="mt-1 text-xs">{articleQuery.data.processing_error}</p>
           ) : null}
         </div>
       ) : null}
@@ -421,9 +442,9 @@ export default function ReaderPage() {
       {articleQuery.isLoading ? <p>加载文章中...</p> : null}
       {articleQuery.isError ? <p className="text-red-600">{(articleQuery.error as Error).message}</p> : null}
 
-      {articleQuery.data?.status === "ready" ? (
+      {articleBlocks.length > 0 ? (
         <ReaderArticleView
-          blocks={articleQuery.data.blocks}
+          blocks={articleBlocks}
           annotationLevel={annotationLevel}
           highlightsByBlock={highlightsByBlock}
           onTokenSelect={setSelectedToken}
@@ -432,6 +453,12 @@ export default function ReaderPage() {
             setSelectionError(error);
           }}
         />
+      ) : null}
+
+      {articleQuery.data && articleBlocks.length === 0 && !articleQuery.isLoading ? (
+        <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+          {articleQuery.data.status === "failed" ? "没有可显示的正文。" : "正文还在生成中，稍后会自动显示。"}
+        </div>
       ) : null}
 
       {selectionError ? <p className="text-xs text-red-600">{selectionError}</p> : null}

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import queue
 import threading
 from time import perf_counter
 from uuid import UUID
@@ -16,9 +15,8 @@ from app.services.product_analytics import EVENT_ARTICLE_PROCESSED, record_produ
 
 logger = logging.getLogger(__name__)
 
-_job_queue: queue.Queue[UUID] = queue.Queue()
-_worker_started = False
-_worker_lock = threading.Lock()
+_recovery_started = False
+_recovery_lock = threading.Lock()
 
 
 def normalize_content(raw_content: str) -> str:
@@ -48,11 +46,7 @@ def _safe_int(value: object, fallback: int = 0) -> int:
         return fallback
 
 
-def enqueue_article_processing(article_id: UUID) -> None:
-    _job_queue.put(article_id)
-
-
-def _process_article(article_id: UUID) -> None:
+def process_article(article_id: UUID) -> None:
     started_at = perf_counter()
     db = SessionLocal()
     try:
@@ -83,18 +77,24 @@ def _process_article(article_id: UUID) -> None:
             )
             return
 
+        block_texts = split_text_blocks(normalized_content)
+        if not block_texts:
+            raise ValueError("Article content is empty after parsing")
+
         article.status = "processing"
         article.processing_error = None
         article.normalized_content = normalized_content
+        article.processed_block_count = 0
+        article.total_block_count = len(block_texts)
         db.commit()
 
         db.execute(delete(TokenOccurrence).where(TokenOccurrence.article_id == article.id))
         db.execute(delete(ArticleBlock).where(ArticleBlock.article_id == article.id))
-        db.flush()
+        db.commit()
 
         block_count = 0
         token_count = 0
-        for block_index, block_text in enumerate(split_text_blocks(article.normalized_content or "")):
+        for block_index, block_text in enumerate(block_texts):
             block = ArticleBlock(article_id=article.id, block_index=block_index, text=block_text)
             db.add(block)
             db.flush()
@@ -117,9 +117,13 @@ def _process_article(article_id: UUID) -> None:
                     )
                 )
                 token_count += 1
+            article.processed_block_count = block_index + 1
+            db.commit()
 
         article.status = "ready"
         article.processing_error = None
+        article.processed_block_count = block_count
+        article.total_block_count = block_count
         record_product_event(
             db,
             user_id=article.user_id,
@@ -143,6 +147,7 @@ def _process_article(article_id: UUID) -> None:
         if article:
             article.status = "failed"
             article.processing_error = str(exc)[:3000]
+            article.processed_block_count = article.processed_block_count or 0
             record_product_event(
                 db,
                 user_id=article.user_id,
@@ -161,35 +166,42 @@ def _process_article(article_id: UUID) -> None:
         db.close()
 
 
-def _worker_loop() -> None:
-    while True:
-        article_id = _job_queue.get()
-        try:
-            _process_article(article_id)
-        finally:
-            _job_queue.task_done()
+def _process_article(article_id: UUID) -> None:
+    process_article(article_id)
 
 
-def _enqueue_pending_articles() -> None:
+def _load_pending_article_ids() -> list[UUID]:
     db = SessionLocal()
     try:
-        rows = db.scalars(select(Article.id).where(Article.status == "processing")).all()
-        for article_id in rows:
-            enqueue_article_processing(article_id)
+        return list(db.scalars(select(Article.id).where(Article.status == "processing")).all())
     except Exception as exc:  # noqa: BLE001
         logger.warning("Failed to load pending article jobs: %s", exc)
+        return []
     finally:
         db.close()
 
 
+def _process_pending_articles(article_ids: list[UUID]) -> None:
+    for article_id in article_ids:
+        process_article(article_id)
+
+
 def start_article_worker() -> None:
-    global _worker_started
+    global _recovery_started
 
-    with _worker_lock:
-        if _worker_started:
+    with _recovery_lock:
+        if _recovery_started:
             return
-        thread = threading.Thread(target=_worker_loop, name="article-processing-worker", daemon=True)
-        thread.start()
-        _worker_started = True
+        _recovery_started = True
 
-    _enqueue_pending_articles()
+    pending_ids = _load_pending_article_ids()
+    if not pending_ids:
+        return
+
+    thread = threading.Thread(
+        target=_process_pending_articles,
+        args=(pending_ids,),
+        name="article-processing-recovery",
+        daemon=True,
+    )
+    thread.start()
