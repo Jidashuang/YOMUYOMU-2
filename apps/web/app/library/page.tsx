@@ -244,21 +244,45 @@ export default function LibraryPage() {
             });
           }}
         >
-          <label className="block text-sm">
-            来源
-            <select
-              className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
-              value={sourceType}
-              onChange={(event) => {
-                setSourceType(event.target.value as SourceType);
-                setEpubReadError("");
-                setIsReadingEpub(false);
-              }}
-            >
-              <option value="text">直接粘贴文本</option>
-              <option value="epub">上传 EPUB</option>
-            </select>
-          </label>
+          <fieldset className="space-y-2">
+            <legend className="text-sm">来源</legend>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                data-testid="source-type-text"
+                aria-pressed={sourceType === "text"}
+                className={`rounded-md border px-3 py-2 text-left text-sm transition ${
+                  sourceType === "text"
+                    ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-100"
+                    : "border-zinc-300 bg-transparent text-zinc-700 hover:bg-stone-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                }`}
+                onClick={() => {
+                  setSourceType("text");
+                  setEpubReadError("");
+                  setIsReadingEpub(false);
+                }}
+              >
+                直接粘贴文本
+              </button>
+              <button
+                type="button"
+                data-testid="source-type-epub"
+                aria-pressed={sourceType === "epub"}
+                className={`rounded-md border px-3 py-2 text-left text-sm transition ${
+                  sourceType === "epub"
+                    ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-100"
+                    : "border-zinc-300 bg-transparent text-zinc-700 hover:bg-stone-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                }`}
+                onClick={() => {
+                  setSourceType("epub");
+                  setEpubReadError("");
+                  setIsReadingEpub(false);
+                }}
+              >
+                上传 EPUB
+              </button>
+            </div>
+          </fieldset>
 
           <label className="block text-sm">
             标题（给这段内容起一个你认得出来的名字）

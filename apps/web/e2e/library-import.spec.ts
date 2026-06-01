@@ -121,6 +121,8 @@ test.describe("library import flow as validation entry", () => {
 
     // Empty state pushes one clear action: paste a real passage.
     await expect(page.getByText("导入一段日文")).toBeVisible();
+    await expect(page.getByTestId("source-type-text")).toBeVisible();
+    await expect(page.getByTestId("source-type-epub")).toBeVisible();
 
     // Replace the sample with a user-supplied passage and import it.
     await page.getByTestId("create-article-title").fill("我的轻小说试读段");
