@@ -123,6 +123,15 @@ test.describe("library import flow as validation entry", () => {
     await expect(page.getByText("导入一段日文")).toBeVisible();
     await expect(page.getByTestId("source-type-text")).toBeVisible();
     await expect(page.getByTestId("source-type-epub")).toBeVisible();
+    await page.getByTestId("source-type-epub").click();
+    await expect(page.getByText("EPUB 文件", { exact: true })).toBeVisible();
+    await page.getByTestId("epub-file-input").setInputFiles({
+      name: "sample.epub",
+      mimeType: "application/epub+zip",
+      buffer: Buffer.from("epub"),
+    });
+    await expect(page.getByText("已选择：sample.epub")).toBeVisible();
+    await page.getByTestId("source-type-text").click();
 
     // Replace the sample with a user-supplied passage and import it.
     await page.getByTestId("create-article-title").fill("我的轻小说试读段");
