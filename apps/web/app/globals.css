@@ -38,10 +38,11 @@ body {
 }
 
 body {
-  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
 }
 
 .reader-text {
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", "PingFang SC", sans-serif;
   font-size: var(--reader-font-size);
   line-height: var(--reader-line-height);
 }

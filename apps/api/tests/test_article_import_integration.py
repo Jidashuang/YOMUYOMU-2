@@ -6,7 +6,12 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 from app.models.entities import Article, ArticleBlock, ProductEvent, TokenOccurrence, User
+from app.db import session as db_session
 from app.services import article_processing
+
+
+def test_sqlite_session_is_configured_for_background_worker() -> None:
+    assert db_session.connect_args == {"check_same_thread": False}
 
 
 def test_article_processing_worker_flow(monkeypatch) -> None:

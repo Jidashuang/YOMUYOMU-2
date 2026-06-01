@@ -117,7 +117,11 @@ export function ReaderArticleView({
   }
 
   return (
-    <article data-testid="reader-article-view" className="reader-text reader-surface rounded-2xl border p-6 shadow-sm sm:p-8">
+    <article
+      lang="ja"
+      data-testid="reader-article-view"
+      className="reader-text reader-surface rounded-2xl border p-6 shadow-sm sm:p-8"
+    >
       <div ref={articleContainerRef} className="reader-measure space-y-6" onMouseUp={handleSelectionMenu}>
         {blocks.map((block) => (
           <p key={block.id} id={`reader-block-${block.id}`} className="scroll-mt-24 leading-relaxed">

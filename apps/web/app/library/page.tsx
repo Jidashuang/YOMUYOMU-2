@@ -41,6 +41,8 @@ export default function LibraryPage() {
   const [rawContent, setRawContent] = useState(SAMPLE_CONTENT);
   const [epubPayload, setEpubPayload] = useState("");
   const [epubFileName, setEpubFileName] = useState("");
+  const [epubReadError, setEpubReadError] = useState("");
+  const [isReadingEpub, setIsReadingEpub] = useState(false);
 
   const articlesQuery = useQuery({
     queryKey: ["articles"],
@@ -247,7 +249,11 @@ export default function LibraryPage() {
             <select
               className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
               value={sourceType}
-              onChange={(event) => setSourceType(event.target.value as SourceType)}
+              onChange={(event) => {
+                setSourceType(event.target.value as SourceType);
+                setEpubReadError("");
+                setIsReadingEpub(false);
+              }}
             >
               <option value="text">直接粘贴文本</option>
               <option value="epub">上传 EPUB</option>
@@ -290,23 +296,36 @@ export default function LibraryPage() {
                 accept=".epub,application/epub+zip"
                 onChange={(event) => {
                   const file = event.target.files?.[0];
+                  setEpubPayload("");
+                  setEpubReadError("");
+                  setIsReadingEpub(false);
                   if (!file) {
-                    setEpubPayload("");
                     setEpubFileName("");
                     return;
                   }
                   setEpubFileName(file.name);
+                  setIsReadingEpub(true);
                   const reader = new FileReader();
                   reader.onload = () => {
                     if (typeof reader.result === "string") {
                       setEpubPayload(reader.result);
+                    } else {
+                      setEpubReadError("EPUB 文件读取失败，请重新选择。");
                     }
+                    setIsReadingEpub(false);
+                  };
+                  reader.onerror = () => {
+                    setEpubPayload("");
+                    setEpubReadError("EPUB 文件读取失败，请重新选择。");
+                    setIsReadingEpub(false);
                   };
                   reader.readAsDataURL(file);
                 }}
                 required
               />
               {epubFileName ? <p className="mt-1 text-xs text-zinc-500">已选择：{epubFileName}</p> : null}
+              {isReadingEpub ? <p className="mt-1 text-xs text-zinc-500">正在读取 EPUB 文件...</p> : null}
+              {epubReadError ? <p className="mt-1 text-xs text-red-600">{epubReadError}</p> : null}
             </label>
           )}
 
@@ -316,9 +335,9 @@ export default function LibraryPage() {
             type="submit"
             data-testid="create-article-submit"
             className="rounded-md bg-brand-500 px-4 py-2 text-white hover:bg-brand-700 disabled:opacity-60"
-            disabled={createMutation.isPending || (sourceType === "epub" && !epubPayload)}
+            disabled={createMutation.isPending || isReadingEpub || (sourceType === "epub" && !epubPayload)}
           >
-            {createMutation.isPending ? "导入中..." : "导入并开始阅读"}
+            {isReadingEpub ? "读取 EPUB 中..." : createMutation.isPending ? "导入中..." : "导入并开始阅读"}
           </button>
         </form>
       </div>

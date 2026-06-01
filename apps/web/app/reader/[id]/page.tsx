@@ -63,7 +63,7 @@ export default function ReaderPage() {
   const [progressPercent, setProgressPercent] = useState(0);
   const [latestAi, setLatestAi] = useState<AIExplanationResponse | null>(null);
   const [addingSuggestedKey, setAddingSuggestedKey] = useState<string | null>(null);
-  const [annotationLevel, setAnnotationLevel] = useState<AnnotationLevel>("N2");
+  const [annotationLevel, setAnnotationLevel] = useState<AnnotationLevel>("N3");
   const [activePanel, setActivePanel] = useState<ReaderPanelKey | null>(null);
 
   const articleQuery = useQuery({

@@ -15,7 +15,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
+    <html lang="zh-CN">
       <body className="bg-stone-100 text-zinc-950 dark:bg-zinc-950 dark:text-zinc-100">
         <Providers>
           <TopNav />
