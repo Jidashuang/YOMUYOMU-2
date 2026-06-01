@@ -4,7 +4,7 @@ import type { ArticleCreateRequest, SourceType } from "@yomuyomu/shared-types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 
 import { createArticle, deleteArticle, listArticles } from "../../lib/api";
 import { PUBLIC_BOOKS } from "../../lib/public-books";
@@ -43,7 +43,6 @@ export default function LibraryPage() {
   const [epubFileName, setEpubFileName] = useState("");
   const [epubReadError, setEpubReadError] = useState("");
   const [isReadingEpub, setIsReadingEpub] = useState(false);
-  const epubFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const articlesQuery = useQuery({
     queryKey: ["articles"],
@@ -293,25 +292,26 @@ export default function LibraryPage() {
               >
                 直接粘贴文本
               </button>
-              <button
-                type="button"
+              <label
+                htmlFor="epub-file-input"
+                role="button"
+                tabIndex={0}
                 data-testid="source-type-epub"
                 aria-pressed={sourceType === "epub"}
-                className={`rounded-md border px-3 py-2 text-left text-sm transition ${
+                className={`cursor-pointer rounded-md border px-3 py-2 text-left text-sm transition ${
                   sourceType === "epub"
                     ? "border-brand-500 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-100"
                     : "border-zinc-300 bg-transparent text-zinc-700 hover:bg-stone-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
                 }`}
                 onClick={() => {
                   setSourceType("epub");
-                  epubFileInputRef.current?.click();
                 }}
               >
                 上传 EPUB
-              </button>
+              </label>
             </div>
             <input
-              ref={epubFileInputRef}
+              id="epub-file-input"
               data-testid="epub-file-input"
               className="sr-only"
               type="file"
@@ -350,13 +350,14 @@ export default function LibraryPage() {
           ) : (
             <div className="rounded-xl border border-dashed border-brand-300 bg-brand-50/40 p-4 text-sm dark:border-brand-700 dark:bg-brand-900/20">
               <p className="font-medium">EPUB 文件</p>
-              <button
-                type="button"
-                className="mt-3 rounded-md bg-brand-500 px-4 py-2 text-white hover:bg-brand-700"
-                onClick={() => epubFileInputRef.current?.click()}
+              <label
+                htmlFor="epub-file-input"
+                role="button"
+                tabIndex={0}
+                className="mt-3 inline-flex cursor-pointer rounded-md bg-brand-500 px-4 py-2 text-white hover:bg-brand-700"
               >
                 选择 EPUB 文件
-              </button>
+              </label>
               {epubFileName ? <p className="mt-1 text-xs text-zinc-500">已选择：{epubFileName}</p> : null}
               {isReadingEpub ? <p className="mt-1 text-xs text-zinc-500">正在读取 EPUB 文件...</p> : null}
               {epubReadError ? <p className="mt-1 text-xs text-red-600">{epubReadError}</p> : null}
