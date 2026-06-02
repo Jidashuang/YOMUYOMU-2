@@ -145,6 +145,30 @@ case "$ACTION" in
       echo "warning: no article_processing_start/ready/failed logs found in recent API logs" >&2
     fi
     ;;
+  verify-web-imports)
+    STATUS="$(instance_status)"
+    echo "instance=$INSTANCE_NAME zone=$ZONE status=$STATUS"
+    if [ "$STATUS" != "RUNNING" ]; then
+      echo "VM is not running." >&2
+      exit 1
+    fi
+    if [ ! -d node_modules/@playwright/test ]; then
+      echo "Node dependencies are required for browser verification. Run: npm ci" >&2
+      exit 1
+    fi
+    IP="$(external_ip)"
+    WEB_BASE_URL="http://$IP"
+    API_BASE_URL="http://$IP/api"
+    echo "url=$WEB_BASE_URL"
+    curl -fsS --max-time 10 "$API_BASE_URL/health" | grep -q '"status":"ok"'
+    node scripts/verify_web_epub_flow.mjs --web-base-url "$WEB_BASE_URL" --api-base-url "$API_BASE_URL" "${ACTION_ARGS[@]}"
+    echo "--- recent article processing logs ---"
+    if remote_compose logs --tail=300 api | grep -E "article_processing_(start|ready|failed)"; then
+      echo "ok: article processing log markers found"
+    else
+      echo "warning: no article_processing_start/ready/failed logs found in recent API logs" >&2
+    fi
+    ;;
   start)
     gcloud compute instances start "$INSTANCE_NAME" --zone "$ZONE"
     IP="$(external_ip)"
@@ -210,7 +234,7 @@ case "$ACTION" in
     '
     ;;
   *)
-    echo "Usage: PROJECT_ID=your-project-id $0 {status|verify|verify-imports|start|stop|ssh|logs|update|backup-db|restore-db}" >&2
+    echo "Usage: PROJECT_ID=your-project-id $0 {status|verify|verify-imports|verify-web-imports|start|stop|ssh|logs|update|backup-db|restore-db}" >&2
     exit 1
     ;;
 esac

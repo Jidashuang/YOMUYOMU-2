@@ -39,7 +39,7 @@ Budget guardrail:
 - `scripts/gcp-vm-preflight.sh`: read-only Cloud Shell checks before creating resources
 - `scripts/gcp-vm-bootstrap.sh`: installs Docker and swap on Ubuntu
 - `scripts/gcp-vm-create-and-deploy.sh`: Cloud Shell helper that creates the VM and deploys the stack
-- `scripts/gcp-vm-manage.sh`: Cloud Shell helper for status, verify, live import acceptance, start, stop, logs, SSH, update, backup, and restore
+- `scripts/gcp-vm-manage.sh`: Cloud Shell helper for status, verify, live API/browser import acceptance, start, stop, logs, SSH, update, backup, and restore
 
 ## 1. Prepare Cloud Shell
 
@@ -213,6 +213,7 @@ Use the helper from Cloud Shell:
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh status
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh verify
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh verify-imports
+PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh verify-web-imports
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh logs
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh update
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh backup-db
@@ -223,6 +224,8 @@ PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh start
 `verify` is read-only. It checks the public homepage, API health, and NLP health; if a check fails, it prints VM firewall, Docker Compose, local health, listening port, and recent service log diagnostics.
 
 `verify-imports` is the live article-import acceptance check. It reuses a stable verification user, imports text and a multi-chapter EPUB through the public API, waits for blocks/tokens/progress, deletes the verification articles after a successful run, verifies invalid EPUBs fail with a visible processing error, and prints recent `article_processing_start` / `article_processing_ready` / `article_processing_failed` API log markers when available.
+
+`verify-web-imports` is the live browser acceptance check. It requires local Node dependencies (`npm ci`) and Playwright Chromium (`npx playwright install chromium`) on the machine running the helper. It opens the public web app in headless Chromium, signs in with the stable verification account, uploads a generated EPUB, waits for the reader to show both chapters, deletes the verification article after a successful run, and prints recent article-processing log markers.
 
 Use `stop` when you are not testing. The persistent disk remains, but VM runtime cost stops.
 
