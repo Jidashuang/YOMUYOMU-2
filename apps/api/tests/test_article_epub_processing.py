@@ -109,6 +109,48 @@ def _build_empty_epub_payload() -> str:
     return _encode_epub(buffer)
 
 
+def _build_large_epub_payload() -> str:
+    repeated = "彼は来るはずだったのに。今日は雨が降っている。\n" * 25000
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, mode="w") as zf:
+        zf.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        zf.writestr(
+            "META-INF/container.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+""",
+        )
+        zf.writestr(
+            "OEBPS/content.opf",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <manifest>
+    <item id="chapter1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+    <item id="chapter2" href="chapter2.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter1"/>
+    <itemref idref="chapter2"/>
+  </spine>
+</package>
+""",
+        )
+        zf.writestr(
+            "OEBPS/chapter1.xhtml",
+            f"<html><body><h1>第一章</h1><p>{repeated}</p></body></html>",
+        )
+        zf.writestr(
+            "OEBPS/chapter2.xhtml",
+            "<html><body><h1>第二章</h1><p>全文末尾 sentinel。</p></body></html>",
+        )
+    assert len(buffer.getvalue()) > 1024 * 1024
+    return _encode_epub(buffer)
+
+
 def test_article_processing_supports_epub_source_type(monkeypatch) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     for table in [User.__table__, Article.__table__, ArticleBlock.__table__, TokenOccurrence.__table__, ProductEvent.__table__]:
@@ -170,6 +212,14 @@ def test_article_processing_supports_epub_source_type(monkeypatch) -> None:
         assert len(tokens) >= 1
         assert article.processed_block_count == len(blocks)
         assert article.total_block_count == len(blocks)
+
+
+def test_epub_parser_extracts_large_epub_without_truncating_tail() -> None:
+    text = epub_parser.extract_text_from_epub_payload(_build_large_epub_payload())
+
+    assert text.index("第一章") < text.index("第二章")
+    assert "彼は来るはずだったのに" in text
+    assert "全文末尾 sentinel。" in text
 
 
 def test_article_processing_marks_invalid_epub_zip_failed(monkeypatch) -> None:
