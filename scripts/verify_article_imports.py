@@ -16,6 +16,7 @@ from urllib.request import Request, urlopen
 
 
 TEXT_CONTENT = "彼は来るはずだったのに。\n今日は雨が降っている。"
+VERIFICATION_EMAIL = "article-verify@example.com"
 
 
 class JsonResponse:
@@ -62,18 +63,17 @@ class JsonClient:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Verify text and EPUB article imports against a live API.")
     parser.add_argument("--api-base-url", default="http://localhost:8000", help="API base URL, e.g. http://IP/api")
-    parser.add_argument("--email", default="", help="Verification account email. Defaults to a unique address.")
+    parser.add_argument(
+        "--email",
+        default=VERIFICATION_EMAIL,
+        help=f"Verification account email. Defaults to {VERIFICATION_EMAIL}",
+    )
     parser.add_argument("--password", default="password123", help="Verification account password")
     parser.add_argument("--timeout", type=float, default=60.0, help="HTTP timeout in seconds")
     parser.add_argument("--poll-timeout", type=float, default=45.0, help="Seconds to wait for each article")
     parser.add_argument("--poll-interval", type=float, default=1.5, help="Seconds between article polls")
     parser.add_argument("--skip-failure-case", action="store_true", help="Skip invalid EPUB failure verification")
     return parser.parse_args()
-
-
-def unique_email() -> str:
-    stamp = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
-    return f"article-verify-{stamp}@example.com"
 
 
 def ensure_auth(client: JsonClient, base_url: str, email: str, password: str) -> str:
@@ -233,7 +233,7 @@ def summarize(article: dict[str, Any]) -> dict[str, Any]:
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
     base_url = args.api_base_url.rstrip("/")
-    email = args.email or unique_email()
+    email = args.email
     client = JsonClient(timeout=args.timeout)
     token = ensure_auth(client, base_url, email, args.password)
 
