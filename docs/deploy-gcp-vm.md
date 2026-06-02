@@ -39,7 +39,7 @@ Budget guardrail:
 - `scripts/gcp-vm-preflight.sh`: read-only Cloud Shell checks before creating resources
 - `scripts/gcp-vm-bootstrap.sh`: installs Docker and swap on Ubuntu
 - `scripts/gcp-vm-create-and-deploy.sh`: Cloud Shell helper that creates the VM and deploys the stack
-- `scripts/gcp-vm-manage.sh`: Cloud Shell helper for status, start, stop, logs, SSH, update, backup, and restore
+- `scripts/gcp-vm-manage.sh`: Cloud Shell helper for status, verify, live import acceptance, start, stop, logs, SSH, update, backup, and restore
 
 ## 1. Prepare Cloud Shell
 
