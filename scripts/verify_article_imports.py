@@ -38,6 +38,9 @@ class JsonClient:
     def get(self, url: str, headers: dict[str, str] | None = None) -> JsonResponse:
         return self._request("GET", url, headers=headers)
 
+    def delete(self, url: str, headers: dict[str, str] | None = None) -> JsonResponse:
+        return self._request("DELETE", url, headers=headers)
+
     def post(self, url: str, json_payload: dict[str, Any], headers: dict[str, str] | None = None) -> JsonResponse:
         body = json.dumps(json_payload).encode("utf-8")
         request_headers = {"Content-Type": "application/json", **(headers or {})}
@@ -162,6 +165,19 @@ def create_article(client: JsonClient, base_url: str, token: str, title: str, so
     return article_id
 
 
+def cleanup_articles(client: JsonClient, base_url: str, token: str, article_ids: list[str]) -> list[str]:
+    errors: list[str] = []
+    for article_id in article_ids:
+        try:
+            response = client.delete(f"{base_url}/articles/{article_id}", headers={"Authorization": f"Bearer {token}"})
+        except Exception as exc:  # noqa: BLE001
+            errors.append(f"{article_id}: {exc}")
+            continue
+        if response.status_code not in {200, 204, 404}:
+            errors.append(f"{article_id}: {response.status_code} {response.text}")
+    return errors
+
+
 def poll_article(client: JsonClient, base_url: str, token: str, article_id: str, args: argparse.Namespace) -> dict[str, Any]:
     deadline = datetime.now(timezone.utc).timestamp() + args.poll_timeout
     last_payload: dict[str, Any] | None = None
@@ -236,30 +252,39 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     email = args.email
     client = JsonClient(timeout=args.timeout)
     token = ensure_auth(client, base_url, email, args.password)
+    article_ids: list[str] = []
 
-    text_id = create_article(client, base_url, token, "verify text import", "text", TEXT_CONTENT)
-    text_article = poll_article(client, base_url, token, text_id, args)
-    assert_ready_article(text_article, "text import")
+    try:
+        text_id = create_article(client, base_url, token, "verify text import", "text", TEXT_CONTENT)
+        article_ids.append(text_id)
+        text_article = poll_article(client, base_url, token, text_id, args)
+        assert_ready_article(text_article, "text import")
 
-    epub_id = create_article(client, base_url, token, "verify epub import", "epub", build_epub_data_url())
-    epub_article = poll_article(client, base_url, token, epub_id, args)
-    assert_epub_article(epub_article)
+        epub_id = create_article(client, base_url, token, "verify epub import", "epub", build_epub_data_url())
+        article_ids.append(epub_id)
+        epub_article = poll_article(client, base_url, token, epub_id, args)
+        assert_epub_article(epub_article)
 
-    result: dict[str, Any] = {
-        "ok": True,
-        "api_base_url": base_url,
-        "email": email,
-        "text": summarize(text_article),
-        "epub": summarize(epub_article),
-    }
+        result: dict[str, Any] = {
+            "ok": True,
+            "api_base_url": base_url,
+            "email": email,
+            "text": summarize(text_article),
+            "epub": summarize(epub_article),
+        }
 
-    if not args.skip_failure_case:
-        bad_payload = "data:application/epub+zip;base64," + base64.b64encode(b"not a zip").decode("ascii")
-        failed_id = create_article(client, base_url, token, "verify invalid epub", "epub", bad_payload)
-        failed_article = poll_article(client, base_url, token, failed_id, args)
-        if failed_article.get("status") != "failed" or not failed_article.get("processing_error"):
-            raise RuntimeError(f"invalid epub did not fail clearly: {failed_article}")
-        result["invalid_epub"] = summarize(failed_article)
+        if not args.skip_failure_case:
+            bad_payload = "data:application/epub+zip;base64," + base64.b64encode(b"not a zip").decode("ascii")
+            failed_id = create_article(client, base_url, token, "verify invalid epub", "epub", bad_payload)
+            article_ids.append(failed_id)
+            failed_article = poll_article(client, base_url, token, failed_id, args)
+            if failed_article.get("status") != "failed" or not failed_article.get("processing_error"):
+                raise RuntimeError(f"invalid epub did not fail clearly: {failed_article}")
+            result["invalid_epub"] = summarize(failed_article)
+    finally:
+        cleanup_errors = cleanup_articles(client, base_url, token, article_ids)
+
+    result["cleanup"] = {"deleted_articles": len(article_ids) - len(cleanup_errors), "errors": cleanup_errors}
 
     return result
 
