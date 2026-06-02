@@ -2,6 +2,7 @@
 set -euo pipefail
 
 ACTION="${1:-status}"
+ACTION_ARGS=("${@:2}")
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}"
 EXPECTED_GCLOUD_ACCOUNT="jidashuang8@gmail.com"
 EXPECTED_GCP_PROJECT="project-c2a014a9-0b24-44a9-abb"
@@ -125,6 +126,19 @@ case "$ACTION" in
     ' || true
     exit 1
     ;;
+  verify-imports)
+    STATUS="$(instance_status)"
+    echo "instance=$INSTANCE_NAME zone=$ZONE status=$STATUS"
+    if [ "$STATUS" != "RUNNING" ]; then
+      echo "VM is not running." >&2
+      exit 1
+    fi
+    IP="$(external_ip)"
+    API_BASE_URL="http://$IP/api"
+    echo "api=$API_BASE_URL"
+    curl -fsS --max-time 10 "$API_BASE_URL/health" | grep -q '"status":"ok"'
+    python3 scripts/verify_article_imports.py --api-base-url "$API_BASE_URL" "${ACTION_ARGS[@]}"
+    ;;
   start)
     gcloud compute instances start "$INSTANCE_NAME" --zone "$ZONE"
     IP="$(external_ip)"
@@ -190,7 +204,7 @@ case "$ACTION" in
     '
     ;;
   *)
-    echo "Usage: PROJECT_ID=your-project-id $0 {status|verify|start|stop|ssh|logs|update|backup-db|restore-db}" >&2
+    echo "Usage: PROJECT_ID=your-project-id $0 {status|verify|verify-imports|start|stop|ssh|logs|update|backup-db|restore-db}" >&2
     exit 1
     ;;
 esac

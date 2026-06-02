@@ -11,9 +11,52 @@ import zipfile
 from datetime import datetime, timezone
 from time import sleep
 from typing import Any
+from urllib.error import HTTPError
+from urllib.request import Request, urlopen
 
 
 TEXT_CONTENT = "彼は来るはずだったのに。\n今日は雨が降っている。"
+
+
+class JsonResponse:
+    def __init__(self, status_code: int, text: str) -> None:
+        self.status_code = status_code
+        self.text = text
+
+    def json(self) -> dict[str, Any]:
+        payload = json.loads(self.text)
+        if not isinstance(payload, dict):
+            raise RuntimeError("response JSON is not an object")
+        return payload
+
+
+class JsonClient:
+    def __init__(self, timeout: float) -> None:
+        self.timeout = timeout
+
+    def get(self, url: str, headers: dict[str, str] | None = None) -> JsonResponse:
+        return self._request("GET", url, headers=headers)
+
+    def post(self, url: str, json_payload: dict[str, Any], headers: dict[str, str] | None = None) -> JsonResponse:
+        body = json.dumps(json_payload).encode("utf-8")
+        request_headers = {"Content-Type": "application/json", **(headers or {})}
+        return self._request("POST", url, body=body, headers=request_headers)
+
+    def _request(
+        self,
+        method: str,
+        url: str,
+        body: bytes | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> JsonResponse:
+        request = Request(url, data=body, headers=headers or {}, method=method)
+        try:
+            with urlopen(request, timeout=self.timeout) as response:
+                text = response.read().decode("utf-8", errors="replace")
+                return JsonResponse(response.status, text)
+        except HTTPError as exc:
+            text = exc.read().decode("utf-8", errors="replace")
+            return JsonResponse(exc.code, text)
 
 
 def parse_args() -> argparse.Namespace:
@@ -33,13 +76,13 @@ def unique_email() -> str:
     return f"article-verify-{stamp}@example.com"
 
 
-def ensure_auth(client: httpx.Client, base_url: str, email: str, password: str) -> str:
+def ensure_auth(client: JsonClient, base_url: str, email: str, password: str) -> str:
     payload = {"email": email, "password": password}
-    response = client.post(f"{base_url}/auth/register", json=payload)
+    response = client.post(f"{base_url}/auth/register", json_payload=payload)
     if response.status_code not in {201, 409}:
         raise RuntimeError(f"register failed: {response.status_code} {response.text}")
 
-    response = client.post(f"{base_url}/auth/login", json=payload)
+    response = client.post(f"{base_url}/auth/login", json_payload=payload)
     if response.status_code != 200:
         raise RuntimeError(f"login failed: {response.status_code} {response.text}")
 
@@ -105,11 +148,11 @@ def build_epub_data_url() -> str:
     return f"data:application/epub+zip;base64,{encoded}"
 
 
-def create_article(client: httpx.Client, base_url: str, token: str, title: str, source_type: str, raw_content: str) -> str:
+def create_article(client: JsonClient, base_url: str, token: str, title: str, source_type: str, raw_content: str) -> str:
     response = client.post(
         f"{base_url}/articles",
         headers={"Authorization": f"Bearer {token}"},
-        json={"title": title, "source_type": source_type, "raw_content": raw_content},
+        json_payload={"title": title, "source_type": source_type, "raw_content": raw_content},
     )
     if response.status_code != 201:
         raise RuntimeError(f"create {title} failed: {response.status_code} {response.text}")
@@ -119,7 +162,7 @@ def create_article(client: httpx.Client, base_url: str, token: str, title: str, 
     return article_id
 
 
-def poll_article(client: httpx.Client, base_url: str, token: str, article_id: str, args: argparse.Namespace) -> dict[str, Any]:
+def poll_article(client: JsonClient, base_url: str, token: str, article_id: str, args: argparse.Namespace) -> dict[str, Any]:
     deadline = datetime.now(timezone.utc).timestamp() + args.poll_timeout
     last_payload: dict[str, Any] | None = None
     snapshots: list[dict[str, Any]] = []
@@ -189,38 +232,36 @@ def summarize(article: dict[str, Any]) -> dict[str, Any]:
 
 
 def run(args: argparse.Namespace) -> dict[str, Any]:
-    import httpx
-
     base_url = args.api_base_url.rstrip("/")
     email = args.email or unique_email()
-    with httpx.Client(timeout=args.timeout) as client:
-        token = ensure_auth(client, base_url, email, args.password)
+    client = JsonClient(timeout=args.timeout)
+    token = ensure_auth(client, base_url, email, args.password)
 
-        text_id = create_article(client, base_url, token, "verify text import", "text", TEXT_CONTENT)
-        text_article = poll_article(client, base_url, token, text_id, args)
-        assert_ready_article(text_article, "text import")
+    text_id = create_article(client, base_url, token, "verify text import", "text", TEXT_CONTENT)
+    text_article = poll_article(client, base_url, token, text_id, args)
+    assert_ready_article(text_article, "text import")
 
-        epub_id = create_article(client, base_url, token, "verify epub import", "epub", build_epub_data_url())
-        epub_article = poll_article(client, base_url, token, epub_id, args)
-        assert_epub_article(epub_article)
+    epub_id = create_article(client, base_url, token, "verify epub import", "epub", build_epub_data_url())
+    epub_article = poll_article(client, base_url, token, epub_id, args)
+    assert_epub_article(epub_article)
 
-        result: dict[str, Any] = {
-            "ok": True,
-            "api_base_url": base_url,
-            "email": email,
-            "text": summarize(text_article),
-            "epub": summarize(epub_article),
-        }
+    result: dict[str, Any] = {
+        "ok": True,
+        "api_base_url": base_url,
+        "email": email,
+        "text": summarize(text_article),
+        "epub": summarize(epub_article),
+    }
 
-        if not args.skip_failure_case:
-            bad_payload = "data:application/epub+zip;base64," + base64.b64encode(b"not a zip").decode("ascii")
-            failed_id = create_article(client, base_url, token, "verify invalid epub", "epub", bad_payload)
-            failed_article = poll_article(client, base_url, token, failed_id, args)
-            if failed_article.get("status") != "failed" or not failed_article.get("processing_error"):
-                raise RuntimeError(f"invalid epub did not fail clearly: {failed_article}")
-            result["invalid_epub"] = summarize(failed_article)
+    if not args.skip_failure_case:
+        bad_payload = "data:application/epub+zip;base64," + base64.b64encode(b"not a zip").decode("ascii")
+        failed_id = create_article(client, base_url, token, "verify invalid epub", "epub", bad_payload)
+        failed_article = poll_article(client, base_url, token, failed_id, args)
+        if failed_article.get("status") != "failed" or not failed_article.get("processing_error"):
+            raise RuntimeError(f"invalid epub did not fail clearly: {failed_article}")
+        result["invalid_epub"] = summarize(failed_article)
 
-        return result
+    return result
 
 
 def main() -> int:
