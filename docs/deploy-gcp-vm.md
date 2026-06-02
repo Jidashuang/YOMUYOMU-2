@@ -222,7 +222,7 @@ PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh start
 
 `verify` is read-only. It checks the public homepage, API health, and NLP health; if a check fails, it prints VM firewall, Docker Compose, local health, listening port, and recent service log diagnostics.
 
-`verify-imports` is the live article-import acceptance check. It reuses a stable verification user, imports text and a multi-chapter EPUB through the public API, waits for blocks/tokens/progress, deletes the verification articles afterward, verifies invalid EPUBs fail with a visible processing error, and prints recent `article_processing_start` / `article_processing_ready` / `article_processing_failed` API log markers when available.
+`verify-imports` is the live article-import acceptance check. It reuses a stable verification user, imports text and a multi-chapter EPUB through the public API, waits for blocks/tokens/progress, deletes the verification articles after a successful run, verifies invalid EPUBs fail with a visible processing error, and prints recent `article_processing_start` / `article_processing_ready` / `article_processing_failed` API log markers when available.
 
 Use `stop` when you are not testing. The persistent disk remains, but VM runtime cost stops.
 

@@ -254,35 +254,34 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
     token = ensure_auth(client, base_url, email, args.password)
     article_ids: list[str] = []
 
-    try:
-        text_id = create_article(client, base_url, token, "verify text import", "text", TEXT_CONTENT)
-        article_ids.append(text_id)
-        text_article = poll_article(client, base_url, token, text_id, args)
-        assert_ready_article(text_article, "text import")
+    text_id = create_article(client, base_url, token, "verify text import", "text", TEXT_CONTENT)
+    article_ids.append(text_id)
+    text_article = poll_article(client, base_url, token, text_id, args)
+    assert_ready_article(text_article, "text import")
 
-        epub_id = create_article(client, base_url, token, "verify epub import", "epub", build_epub_data_url())
-        article_ids.append(epub_id)
-        epub_article = poll_article(client, base_url, token, epub_id, args)
-        assert_epub_article(epub_article)
+    epub_id = create_article(client, base_url, token, "verify epub import", "epub", build_epub_data_url())
+    article_ids.append(epub_id)
+    epub_article = poll_article(client, base_url, token, epub_id, args)
+    assert_epub_article(epub_article)
 
-        result: dict[str, Any] = {
-            "ok": True,
-            "api_base_url": base_url,
-            "email": email,
-            "text": summarize(text_article),
-            "epub": summarize(epub_article),
-        }
+    result: dict[str, Any] = {
+        "ok": True,
+        "api_base_url": base_url,
+        "email": email,
+        "text": summarize(text_article),
+        "epub": summarize(epub_article),
+    }
 
-        if not args.skip_failure_case:
-            bad_payload = "data:application/epub+zip;base64," + base64.b64encode(b"not a zip").decode("ascii")
-            failed_id = create_article(client, base_url, token, "verify invalid epub", "epub", bad_payload)
-            article_ids.append(failed_id)
-            failed_article = poll_article(client, base_url, token, failed_id, args)
-            if failed_article.get("status") != "failed" or not failed_article.get("processing_error"):
-                raise RuntimeError(f"invalid epub did not fail clearly: {failed_article}")
-            result["invalid_epub"] = summarize(failed_article)
-    finally:
-        cleanup_errors = cleanup_articles(client, base_url, token, article_ids)
+    if not args.skip_failure_case:
+        bad_payload = "data:application/epub+zip;base64," + base64.b64encode(b"not a zip").decode("ascii")
+        failed_id = create_article(client, base_url, token, "verify invalid epub", "epub", bad_payload)
+        article_ids.append(failed_id)
+        failed_article = poll_article(client, base_url, token, failed_id, args)
+        if failed_article.get("status") != "failed" or not failed_article.get("processing_error"):
+            raise RuntimeError(f"invalid epub did not fail clearly: {failed_article}")
+        result["invalid_epub"] = summarize(failed_article)
+
+    cleanup_errors = cleanup_articles(client, base_url, token, article_ids)
 
     result["cleanup"] = {"deleted_articles": len(article_ids) - len(cleanup_errors), "errors": cleanup_errors}
 
