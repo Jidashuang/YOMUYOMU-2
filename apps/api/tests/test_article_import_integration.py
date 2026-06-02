@@ -126,3 +126,44 @@ def test_article_processing_keeps_completed_blocks_when_later_block_fails(monkey
         assert len(blocks) == 1
         assert blocks[0].text == "一段目。"
         assert len(tokens) == 1
+
+
+def test_article_processing_marks_zero_token_article_failed(monkeypatch) -> None:
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    for table in [User.__table__, Article.__table__, ArticleBlock.__table__, TokenOccurrence.__table__, ProductEvent.__table__]:
+        table.create(engine)
+
+    testing_session_local = sessionmaker(bind=engine)
+    monkeypatch.setattr(article_processing, "SessionLocal", testing_session_local)
+    monkeypatch.setattr(article_processing.nlp_client, "annotate", lambda text: [])
+
+    with testing_session_local() as db:
+        user = User(id=uuid.uuid4(), email="zero-token@example.com", password_hash="hash")
+        article = Article(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            title="zero token",
+            source_type="text",
+            status="processing",
+            raw_content="彼は来る。",
+            normalized_content=None,
+        )
+        db.add(user)
+        db.add(article)
+        db.commit()
+        article_id = article.id
+
+    article_processing._process_article(article_id)
+
+    with testing_session_local() as db:
+        article = db.scalar(select(Article).where(Article.id == article_id))
+        assert article is not None
+        assert article.status == "failed"
+        assert "NLP annotation produced no tokens" in (article.processing_error or "")
+        assert article.processed_block_count == 1
+        assert article.total_block_count == 1
+
+        blocks = db.scalars(select(ArticleBlock).where(ArticleBlock.article_id == article_id)).all()
+        tokens = db.scalars(select(TokenOccurrence).where(TokenOccurrence.article_id == article_id)).all()
+        assert len(blocks) == 1
+        assert tokens == []

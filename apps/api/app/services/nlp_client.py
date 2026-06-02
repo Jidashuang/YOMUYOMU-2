@@ -15,7 +15,10 @@ class NLPClient:
         self.base_url = (base_url or settings.nlp_service_url).rstrip("/")
 
     def annotate(self, text: str) -> list[dict]:
-        return self._post_json("/annotate", {"text": text}).get("tokens", [])
+        tokens = self._post_json("/annotate", {"text": text}).get("tokens")
+        if not isinstance(tokens, list):
+            raise RuntimeError("NLP annotate failed")
+        return tokens
 
     def tokenize(self, text: str) -> list[dict]:
         return self._post_json("/tokenize", {"text": text}).get("tokens", [])

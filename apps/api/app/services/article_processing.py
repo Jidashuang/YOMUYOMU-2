@@ -120,6 +120,9 @@ def process_article(article_id: UUID) -> None:
             article.processed_block_count = block_index + 1
             db.commit()
 
+        if token_count == 0:
+            raise RuntimeError("NLP annotation produced no tokens")
+
         article.status = "ready"
         article.processing_error = None
         article.processed_block_count = block_count
