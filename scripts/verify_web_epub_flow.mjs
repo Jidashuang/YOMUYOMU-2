@@ -160,13 +160,12 @@ async function run(args) {
   try {
     const page = await browser.newPage();
     page.setDefaultTimeout(args.timeoutMs);
-    await page.addInitScript(
-      ({ token, user }) => {
-        localStorage.setItem("yomuyomu-auth", JSON.stringify({ state: { accessToken: token, user }, version: 0 }));
-      },
-      auth
-    );
 
+    await page.goto(`${args.webBaseUrl}/login`, { waitUntil: "domcontentloaded" });
+    await page.getByTestId("login-email").fill(args.email);
+    await page.getByTestId("login-password").fill(args.password);
+    await page.getByTestId("login-submit").click();
+    await page.waitForURL(/\/library$/, { timeout: args.timeoutMs });
     await page.goto(`${args.webBaseUrl}/library`, { waitUntil: "domcontentloaded" });
     await page.getByTestId("source-type-epub").click();
     await page.getByTestId("epub-file-input").setInputFiles(epubPath);
