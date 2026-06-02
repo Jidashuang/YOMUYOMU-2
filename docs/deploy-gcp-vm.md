@@ -212,6 +212,7 @@ Use the helper from Cloud Shell:
 ```bash
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh status
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh verify
+PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh verify-imports
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh logs
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh update
 PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh backup-db
@@ -220,6 +221,8 @@ PROJECT_ID=project-c2a014a9-0b24-44a9-abb ./scripts/gcp-vm-manage.sh start
 ```
 
 `verify` is read-only. It checks the public homepage, API health, and NLP health; if a check fails, it prints VM firewall, Docker Compose, local health, listening port, and recent service log diagnostics.
+
+`verify-imports` is the live article-import acceptance check. It creates a temporary verification user, imports text and a multi-chapter EPUB through the public API, waits for blocks/tokens/progress, and verifies invalid EPUBs fail with a visible processing error.
 
 Use `stop` when you are not testing. The persistent disk remains, but VM runtime cost stops.
 
