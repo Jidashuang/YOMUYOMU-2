@@ -138,6 +138,12 @@ case "$ACTION" in
     echo "api=$API_BASE_URL"
     curl -fsS --max-time 10 "$API_BASE_URL/health" | grep -q '"status":"ok"'
     python3 scripts/verify_article_imports.py --api-base-url "$API_BASE_URL" "${ACTION_ARGS[@]}"
+    echo "--- recent article processing logs ---"
+    if remote_compose logs --tail=300 api | grep -E "article_processing_(start|ready|failed)"; then
+      echo "ok: article processing log markers found"
+    else
+      echo "warning: no article_processing_start/ready/failed logs found in recent API logs" >&2
+    fi
     ;;
   start)
     gcloud compute instances start "$INSTANCE_NAME" --zone "$ZONE"
