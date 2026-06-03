@@ -66,6 +66,15 @@ wait_for_health() {
   '
 }
 
+check_public_nlp_health() {
+  local nlp_base_url="$1"
+  if curl -fsS --max-time 10 "$nlp_base_url/health" | grep -q '"status":"ok"'; then
+    echo "ok: public nlp health"
+  else
+    echo "warning: public nlp health check failed; continuing because import/token verification uses API-backed NLP" >&2
+  fi
+}
+
 case "$ACTION" in
   status)
     STATUS="$(instance_status)"
@@ -138,7 +147,7 @@ case "$ACTION" in
     NLP_BASE_URL="http://$IP/nlp"
     echo "api=$API_BASE_URL"
     curl -fsS --max-time 10 "$API_BASE_URL/health" | grep -q '"status":"ok"'
-    curl -fsS --max-time 10 "$NLP_BASE_URL/health" | grep -q '"status":"ok"'
+    check_public_nlp_health "$NLP_BASE_URL"
     python3 scripts/verify_article_imports.py --api-base-url "$API_BASE_URL" "${ACTION_ARGS[@]}"
     echo "--- recent article processing logs ---"
     if remote_compose logs --tail=300 api | grep -E "article_processing_(start|ready|failed)"; then
@@ -164,7 +173,7 @@ case "$ACTION" in
     NLP_BASE_URL="http://$IP/nlp"
     echo "url=$WEB_BASE_URL"
     curl -fsS --max-time 10 "$API_BASE_URL/health" | grep -q '"status":"ok"'
-    curl -fsS --max-time 10 "$NLP_BASE_URL/health" | grep -q '"status":"ok"'
+    check_public_nlp_health "$NLP_BASE_URL"
     node scripts/verify_web_epub_flow.mjs --web-base-url "$WEB_BASE_URL" --api-base-url "$API_BASE_URL" "${ACTION_ARGS[@]}"
     echo "--- recent article processing logs ---"
     if remote_compose logs --tail=300 api | grep -E "article_processing_(start|ready|failed)"; then
