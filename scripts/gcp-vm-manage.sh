@@ -76,6 +76,10 @@ check_public_nlp_health() {
 }
 
 ensure_playwright_chromium() {
+  if [ "${PLAYWRIGHT_AUTO_INSTALL:-0}" != "1" ]; then
+    echo "skipping Playwright browser auto-install; set PLAYWRIGHT_AUTO_INSTALL=1 to enable it"
+    return 0
+  fi
   local cache_dir="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
   echo "ensuring Playwright Chromium browser"
   for attempt in 1 2 3; do
