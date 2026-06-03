@@ -156,7 +156,10 @@ async function launchChromium(chromium, args) {
   try {
     return await chromium.launch({ headless: !args.headful });
   } catch (error) {
-    if (args.headful || !String(error.message).includes("chromium_headless_shell")) {
+    const message = String(error.message);
+    const canUseSystemChromium =
+      !args.headful && (message.includes("Executable doesn't exist") || message.includes("chromium_headless_shell"));
+    if (!canUseSystemChromium) {
       throw error;
     }
     return await chromium.launch({ headless: true, channel: "chromium" });
