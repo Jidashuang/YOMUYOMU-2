@@ -148,6 +148,10 @@ async function waitForLocatorText(locator, expectedText, timeoutMs) {
   throw new Error(`Timed out waiting for text: ${expectedText}`);
 }
 
+async function waitForHydration(page) {
+  await page.waitForLoadState("networkidle", { timeout: 30000 }).catch(() => {});
+}
+
 async function launchChromium(chromium, args) {
   try {
     return await chromium.launch({ headless: !args.headful });
@@ -173,11 +177,13 @@ async function run(args) {
     page.setDefaultTimeout(args.timeoutMs);
 
     await page.goto(`${args.webBaseUrl}/login`, { waitUntil: "domcontentloaded" });
+    await waitForHydration(page);
     await page.getByTestId("login-email").fill(args.email);
     await page.getByTestId("login-password").fill(args.password);
     await page.getByTestId("login-submit").click();
     await page.waitForURL(/\/library$/, { timeout: args.timeoutMs });
     await page.goto(`${args.webBaseUrl}/library`, { waitUntil: "domcontentloaded" });
+    await waitForHydration(page);
     await page.getByTestId("source-type-epub").click();
     await page.getByTestId("epub-file-input").setInputFiles(epubPath);
     await waitForLocatorText(page.locator("body"), "已选择：yomuyomu-live-verify.epub", args.timeoutMs);
