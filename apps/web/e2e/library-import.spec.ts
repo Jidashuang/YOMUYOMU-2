@@ -302,12 +302,39 @@ test.describe("library import flow as validation entry", () => {
       processed_block_count: 2,
       normalized_content: "第一章\n第二章",
       blocks: [
-        ...processingPartialArticle.blocks,
+        {
+          id: blockId,
+          block_index: 0,
+          text: "第一章",
+          tokens: [
+            {
+              surface: "第一章",
+              lemma: "第一章",
+              reading: "ダイイッショウ",
+              pos: "名詞",
+              start_offset: 0,
+              end_offset: 3,
+              jlpt_level: "Unknown",
+              frequency_band: "Unknown",
+            },
+          ],
+        },
         {
           id: "33333333-3333-4333-8333-333333333333",
           block_index: 1,
           text: "第二章",
-          tokens: [],
+          tokens: [
+            {
+              surface: "第二章",
+              lemma: "第二章",
+              reading: "ダイニショウ",
+              pos: "名詞",
+              start_offset: 0,
+              end_offset: 3,
+              jlpt_level: "N3",
+              frequency_band: "top-5k",
+            },
+          ],
         },
       ],
     };
@@ -354,6 +381,27 @@ test.describe("library import flow as validation entry", () => {
         return route.fulfill({ status: 200, contentType: "application/json", body: "[]" });
       }
 
+      if (method === "POST" && url.pathname === "/reader-data/lookup") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            entries: [
+              {
+                surface: "第二章",
+                lemma: "第二章",
+                reading: "ダイニショウ",
+                primary_meaning: "chapter two",
+                meanings: ["chapter two"],
+                pos: ["名詞"],
+                jlpt_level: "N3",
+                frequency_band: "top-5k",
+              },
+            ],
+          }),
+        });
+      }
+
       if (method === "GET" && url.pathname.startsWith("/reader-data/progress/")) {
         return route.fulfill({ status: 200, contentType: "application/json", body: "null" });
       }
@@ -393,5 +441,9 @@ test.describe("library import flow as validation entry", () => {
     await expect(page.getByTestId("reader-processing-banner")).toContainText("整本 EPUB 正在继续处理：1/2");
     await expect(page.getByTestId("reader-article-view")).toContainText("第二章", { timeout: 6000 });
     await expect(page.getByTestId("reader-processing-banner")).not.toBeVisible();
+    await expect(page.getByTestId("reader-token").filter({ hasText: "第二章" })).toBeVisible();
+    await page.getByTestId("reader-token").filter({ hasText: "第二章" }).click();
+    await expect(page.getByTestId("token-popup")).toBeVisible();
+    await expect(page.getByTestId("token-popup-meaning")).toContainText("chapter two");
   });
 });

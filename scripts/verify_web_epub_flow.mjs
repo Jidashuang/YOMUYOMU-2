@@ -190,6 +190,22 @@ async function run(args) {
     await waitForLocatorText(articleView, "第一章", args.timeoutMs);
     await waitForLocatorText(articleView, "第二章", args.timeoutMs);
 
+    const readerTokens = page.getByTestId("reader-token");
+    await readerTokens.first().waitFor({ state: "visible", timeout: args.timeoutMs });
+    const tokenCount = await readerTokens.count();
+    const tokenInfo = await readerTokens.evaluateAll((nodes) =>
+      nodes
+        .map((node, index) => ({ index, text: node.textContent?.trim() || "" }))
+        .find((item) => item.text.length > 0)
+    );
+    if (!tokenInfo) {
+      throw new Error("Reader rendered no clickable tokens");
+    }
+    await readerTokens.nth(tokenInfo.index).click();
+    const tokenPopup = page.getByTestId("token-popup");
+    await tokenPopup.waitFor({ state: "visible", timeout: args.timeoutMs });
+    await waitForLocatorText(tokenPopup, tokenInfo.text, args.timeoutMs);
+
     const cleanup = { deleted_article: false, error: null };
     if (!args.keepArticle) {
       try {
@@ -207,6 +223,8 @@ async function run(args) {
       email: args.email,
       article_id: articleId,
       processing_banner_observed: processingBannerObserved,
+      reader_token_count: tokenCount,
+      clicked_token: tokenInfo.text,
       cleanup,
     };
   } finally {
