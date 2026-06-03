@@ -148,13 +148,24 @@ async function waitForLocatorText(locator, expectedText, timeoutMs) {
   throw new Error(`Timed out waiting for text: ${expectedText}`);
 }
 
+async function launchChromium(chromium, args) {
+  try {
+    return await chromium.launch({ headless: !args.headful });
+  } catch (error) {
+    if (args.headful || !String(error.message).includes("chromium_headless_shell")) {
+      throw error;
+    }
+    return await chromium.launch({ headless: true, channel: "chromium" });
+  }
+}
+
 async function run(args) {
   const chromium = await loadChromium();
   const auth = await ensureAuth(args);
   const epubPath = path.join(os.tmpdir(), "yomuyomu-live-verify.epub");
   await fs.writeFile(epubPath, Buffer.from(EPUB_BASE64, "base64"));
 
-  const browser = await chromium.launch({ headless: !args.headful });
+  const browser = await launchChromium(chromium, args);
   let articleId = "";
   let processingBannerObserved = false;
   try {
