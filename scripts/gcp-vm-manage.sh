@@ -75,6 +75,20 @@ check_public_nlp_health() {
   fi
 }
 
+ensure_playwright_chromium() {
+  local cache_dir="${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}"
+  echo "ensuring Playwright Chromium browser"
+  for attempt in 1 2 3; do
+    rm -rf "$cache_dir/__dirlock" "$HOME/.cache/ms-playwright/__dirlock"
+    if PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT="${PLAYWRIGHT_DOWNLOAD_CONNECTION_TIMEOUT:-120000}" npx --no-install playwright install chromium; then
+      return 0
+    fi
+    echo "warning: Playwright Chromium install attempt $attempt failed" >&2
+    sleep 2
+  done
+  return 1
+}
+
 case "$ACTION" in
   status)
     STATUS="$(instance_status)"
@@ -167,6 +181,7 @@ case "$ACTION" in
       echo "Node dependencies are required for browser verification. Run: npm ci" >&2
       exit 1
     fi
+    ensure_playwright_chromium
     IP="$(external_ip)"
     WEB_BASE_URL="http://$IP"
     API_BASE_URL="http://$IP/api"
