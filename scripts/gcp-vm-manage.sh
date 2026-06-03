@@ -135,8 +135,10 @@ case "$ACTION" in
     fi
     IP="$(external_ip)"
     API_BASE_URL="http://$IP/api"
+    NLP_BASE_URL="http://$IP/nlp"
     echo "api=$API_BASE_URL"
     curl -fsS --max-time 10 "$API_BASE_URL/health" | grep -q '"status":"ok"'
+    curl -fsS --max-time 10 "$NLP_BASE_URL/health" | grep -q '"status":"ok"'
     python3 scripts/verify_article_imports.py --api-base-url "$API_BASE_URL" "${ACTION_ARGS[@]}"
     echo "--- recent article processing logs ---"
     if remote_compose logs --tail=300 api | grep -E "article_processing_(start|ready|failed)"; then
@@ -159,8 +161,10 @@ case "$ACTION" in
     IP="$(external_ip)"
     WEB_BASE_URL="http://$IP"
     API_BASE_URL="http://$IP/api"
+    NLP_BASE_URL="http://$IP/nlp"
     echo "url=$WEB_BASE_URL"
     curl -fsS --max-time 10 "$API_BASE_URL/health" | grep -q '"status":"ok"'
+    curl -fsS --max-time 10 "$NLP_BASE_URL/health" | grep -q '"status":"ok"'
     node scripts/verify_web_epub_flow.mjs --web-base-url "$WEB_BASE_URL" --api-base-url "$API_BASE_URL" "${ACTION_ARGS[@]}"
     echo "--- recent article processing logs ---"
     if remote_compose logs --tail=300 api | grep -E "article_processing_(start|ready|failed)"; then
