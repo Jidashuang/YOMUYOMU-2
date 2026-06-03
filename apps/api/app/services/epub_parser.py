@@ -34,13 +34,14 @@ _BLOCK_TAGS = {
     "th",
     "tr",
 }
-_IGNORED_TAGS = {"script", "style", "noscript"}
+_IGNORED_TAGS = {"script", "style", "noscript", "rt", "rp"}
 _HTML_MEDIA_TYPES = {
     "application/xhtml+xml",
     "text/html",
     "application/xml",
 }
 MAX_EPUB_BYTES = 20 * 1024 * 1024
+_JAPANESE_SPACING_CHARS = r"\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff々〆〤ヶヵー、。・！？「」『』（）［］【】"
 
 
 class _HTMLToTextParser(HTMLParser):
@@ -72,13 +73,17 @@ class _HTMLToTextParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if self._ignored_depth > 0:
             return
-        if data:
-            self._parts.append(data)
+        normalized = re.sub(r"\s+", " ", data)
+        if normalized.strip():
+            self._parts.append(normalized)
 
     def get_text(self) -> str:
         raw = "".join(self._parts)
         raw = re.sub(r"[ \t\r\f\v]+", " ", raw)
-        lines = [line.strip() for line in raw.split("\n")]
+        lines = [
+            re.sub(fr"(?<=[{_JAPANESE_SPACING_CHARS}]) (?=[{_JAPANESE_SPACING_CHARS}])", "", line.strip())
+            for line in raw.split("\n")
+        ]
         collapsed_lines = [line for line in lines if line]
         return "\n".join(collapsed_lines).strip()
 

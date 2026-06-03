@@ -151,6 +151,51 @@ def _build_large_epub_payload() -> str:
     return _encode_epub(buffer)
 
 
+def _build_ruby_epub_payload() -> str:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, mode="w") as zf:
+        zf.writestr("mimetype", "application/epub+zip", compress_type=zipfile.ZIP_STORED)
+        zf.writestr(
+            "META-INF/container.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+  <rootfiles>
+    <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+  </rootfiles>
+</container>
+""",
+        )
+        zf.writestr(
+            "OEBPS/content.opf",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+  <manifest>
+    <item id="chapter1" href="chapter1.xhtml" media-type="application/xhtml+xml"/>
+  </manifest>
+  <spine>
+    <itemref idref="chapter1"/>
+  </spine>
+</package>
+""",
+        )
+        zf.writestr(
+            "OEBPS/chapter1.xhtml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <body>
+    <p>
+      <ruby>洒落<rt>しゃれ</rt></ruby>
+      <ruby>者<rt>もの</rt></ruby>
+      であった。
+    </p>
+    <p>「 <ruby>分際<rt>ぶんざい</rt></ruby> 」を心得る。</p>
+  </body>
+</html>
+""",
+        )
+    return _encode_epub(buffer)
+
+
 def test_article_processing_supports_epub_source_type(monkeypatch) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     for table in [User.__table__, Article.__table__, ArticleBlock.__table__, TokenOccurrence.__table__, ProductEvent.__table__]:
@@ -220,6 +265,17 @@ def test_epub_parser_extracts_large_epub_without_truncating_tail() -> None:
     assert text.index("第一章") < text.index("第二章")
     assert "彼は来るはずだったのに" in text
     assert "全文末尾 sentinel。" in text
+
+
+def test_epub_parser_removes_ruby_readings_and_japanese_inline_spacing() -> None:
+    text = epub_parser.extract_text_from_epub_payload(_build_ruby_epub_payload())
+
+    assert "洒落者であった。" in text
+    assert "「分際」を心得る。" in text
+    assert "しゃれ" not in text
+    assert "もの" not in text
+    assert "ぶんざい" not in text
+    assert "洒落 者" not in text
 
 
 def test_article_processing_marks_invalid_epub_zip_failed(monkeypatch) -> None:

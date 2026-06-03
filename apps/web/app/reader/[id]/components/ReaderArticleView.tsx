@@ -16,6 +16,10 @@ const jlptClassMap: Record<JlptLevel, string> = {
   N1: "bg-rose-100 text-rose-950 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900",
   Unknown: "text-zinc-900 dark:text-zinc-200",
 };
+const neutralTokenClass = "text-zinc-900 dark:text-zinc-200";
+const unknownContentTokenClass =
+  "bg-stone-200/80 text-zinc-950 ring-1 ring-stone-300 dark:bg-zinc-700/70 dark:text-zinc-100 dark:ring-zinc-600";
+const contentPosMarkers = ["名詞", "動詞", "形容詞", "形状詞", "副詞", "連体詞", "noun", "verb", "adjective", "adverb"];
 
 const jlptRank: Record<AnnotationLevel, number> = {
   N3: 3,
@@ -28,6 +32,24 @@ function shouldAnnotate(tokenLevel: JlptLevel, annotationLevel: AnnotationLevel)
     return false;
   }
   return jlptRank[tokenLevel] <= jlptRank[annotationLevel];
+}
+
+function isUnknownContentToken(token: ArticleToken, annotationLevel: AnnotationLevel) {
+  return (
+    annotationLevel === "N3" &&
+    token.jlpt_level === "Unknown" &&
+    contentPosMarkers.some((marker) => token.pos.toLowerCase().includes(marker.toLowerCase()))
+  );
+}
+
+function annotationClassForToken(token: ArticleToken, annotationLevel: AnnotationLevel) {
+  if (shouldAnnotate(token.jlpt_level, annotationLevel)) {
+    return jlptClassMap[token.jlpt_level];
+  }
+  if (isUnknownContentToken(token, annotationLevel)) {
+    return unknownContentTokenClass;
+  }
+  return neutralTokenClass;
 }
 
 interface ReaderArticleViewProps {
@@ -128,7 +150,7 @@ export function ReaderArticleView({
             {block.tokens.length > 0
               ? block.tokens.map((token: ArticleToken, tokenIndex: number) => {
                   const highlighted = tokenHasHighlight(block.id, token, highlightsByBlock);
-                  const annotated = shouldAnnotate(token.jlpt_level, annotationLevel);
+                  const tokenClass = annotationClassForToken(token, annotationLevel);
                   return (
                     <span
                       key={`${block.id}-${tokenIndex}`}
@@ -136,9 +158,9 @@ export function ReaderArticleView({
                       data-block-id={block.id}
                       data-token-start={token.start_offset}
                       data-token-end={token.end_offset}
-                      className={`mx-[1px] rounded px-0.5 py-0.5 transition select-text ${
-                        annotated ? jlptClassMap[token.jlpt_level] : "text-zinc-900 dark:text-zinc-200"
-                      } ${highlighted ? "bg-yellow-200/70 dark:bg-yellow-700/40" : ""}`}
+                      className={`rounded-sm transition-colors select-text ${tokenClass} ${
+                        highlighted ? "bg-yellow-200/70 dark:bg-yellow-700/40" : ""
+                      }`}
                       onClick={(event) => {
                         const rect = event.currentTarget.getBoundingClientRect();
                         onTokenSelect({

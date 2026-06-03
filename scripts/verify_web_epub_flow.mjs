@@ -210,6 +210,22 @@ async function run(args) {
     const readerTokens = page.getByTestId("reader-token");
     await readerTokens.first().waitFor({ state: "visible", timeout: args.timeoutMs });
     const tokenCount = await readerTokens.count();
+    const artificialSpacingToken = await readerTokens.evaluateAll((nodes) =>
+      nodes
+        .map((node) => node.className || "")
+        .find((className) => className.includes("mx-") || className.includes("px-0.5"))
+    );
+    if (artificialSpacingToken) {
+      throw new Error(`Reader token still has artificial spacing classes: ${artificialSpacingToken}`);
+    }
+    const coloredTokenInfo = await readerTokens.evaluateAll((nodes) =>
+      nodes
+        .map((node, index) => ({ index, text: node.textContent?.trim() || "", className: node.className || "" }))
+        .find((item) => /bg-(sky|amber|rose|stone)/.test(item.className))
+    );
+    if (!coloredTokenInfo) {
+      throw new Error("Reader rendered clickable tokens but no difficulty color marker");
+    }
     const tokenInfo = await readerTokens.evaluateAll((nodes) =>
       nodes
         .map((node, index) => ({ index, text: node.textContent?.trim() || "" }))
@@ -241,6 +257,7 @@ async function run(args) {
       article_id: articleId,
       processing_banner_observed: processingBannerObserved,
       reader_token_count: tokenCount,
+      colored_token: coloredTokenInfo.text,
       clicked_token: tokenInfo.text,
       cleanup,
     };

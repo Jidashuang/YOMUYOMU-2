@@ -13,8 +13,8 @@ test("reader critical flow smoke", async ({ page }) => {
     status: "ready",
     processing_error: null,
     created_at: "2026-03-17T00:00:00Z",
-    raw_content: "彼は来るはずだったのに。",
-    normalized_content: "彼は来るはずだったのに。",
+    raw_content: "彼は来るはずだったのに。\n姿を見せた。",
+    normalized_content: "彼は来るはずだったのに。\n姿を見せた。",
     blocks: [
       {
         id: blockId,
@@ -28,6 +28,17 @@ test("reader critical flow smoke", async ({ page }) => {
           { surface: "だった", lemma: "だ", reading: "だった", pos: "助動詞", start_offset: 6, end_offset: 9, jlpt_level: "Unknown", frequency_band: "Unknown" },
           { surface: "のに", lemma: "のに", reading: "のに", pos: "助詞", start_offset: 9, end_offset: 11, jlpt_level: "N3", frequency_band: "top-10k" },
           { surface: "。", lemma: "。", reading: "。", pos: "記号", start_offset: 11, end_offset: 12, jlpt_level: "Unknown", frequency_band: "Unknown" },
+        ],
+      },
+      {
+        id: "22222222-2222-4222-8222-222222222223",
+        block_index: 1,
+        text: "姿を見せた。",
+        tokens: [
+          { surface: "姿", lemma: "姿", reading: "すがた", pos: "名詞", start_offset: 0, end_offset: 1, jlpt_level: "Unknown", frequency_band: "Unknown" },
+          { surface: "を", lemma: "を", reading: "を", pos: "助詞", start_offset: 1, end_offset: 2, jlpt_level: "Unknown", frequency_band: "Unknown" },
+          { surface: "見せた", lemma: "見せる", reading: "みせた", pos: "動詞", start_offset: 2, end_offset: 5, jlpt_level: "Unknown", frequency_band: "Unknown" },
+          { surface: "。", lemma: "。", reading: "。", pos: "記号", start_offset: 5, end_offset: 6, jlpt_level: "Unknown", frequency_band: "Unknown" },
         ],
       },
     ],
@@ -232,10 +243,22 @@ test("reader critical flow smoke", async ({ page }) => {
   await expect(page.getByTestId("reader-article-view")).toBeVisible();
   await expect(page.getByTestId("annotation-controls")).toBeVisible();
   await expect(page.getByTestId("annotation-controls")).toContainText("N3/N2/N1");
+  await expect(page.getByTestId("annotation-controls")).toContainText("未分级实词");
   const n3Annotated = await page.locator("[data-testid='reader-token']", { hasText: "はず" }).first().evaluate((node) =>
     node.className.includes("bg-sky")
   );
   expect(n3Annotated).toBeTruthy();
+  const unknownContentAnnotated = await page.locator("[data-testid='reader-token']", { hasText: "姿" }).first().evaluate((node) =>
+    node.className.includes("bg-stone")
+  );
+  expect(unknownContentAnnotated).toBeTruthy();
+  const unknownParticleAnnotated = await page.locator("[data-testid='reader-token']", { hasText: "を" }).first().evaluate((node) =>
+    node.className.includes("bg-stone")
+  );
+  expect(unknownParticleAnnotated).toBeFalsy();
+  const tokenClassName = await page.locator("[data-testid='reader-token']", { hasText: "彼" }).first().getAttribute("class");
+  expect(tokenClassName).not.toContain("mx-");
+  expect(tokenClassName).not.toContain("px-0.5");
 
   await page.locator("[data-testid='reader-token']", { hasText: "来る" }).first().click();
   await expect(page.getByTestId("token-popup")).toBeVisible();
