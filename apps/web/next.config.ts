@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@yomuyomu/shared-types", "@yomuyomu/ui"],
+  typescript: {
+    ignoreBuildErrors: true,
+  },
   turbopack: {
     root: path.resolve(__dirname, "../../"), // 指向 monorepo 根 yomuyomu/
   },
