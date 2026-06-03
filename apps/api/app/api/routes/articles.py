@@ -3,11 +3,21 @@ from __future__ import annotations
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db_session
-from app.models.entities import Article, ArticleBlock, TokenOccurrence, User
+from app.models.entities import (
+    AIExplanation,
+    Article,
+    ArticleBlock,
+    Highlight,
+    ProductEvent,
+    ReadingProgress,
+    TokenOccurrence,
+    User,
+    VocabItem,
+)
 from app.schemas.article import (
     ArticleBlockResponse,
     ArticleCreateRequest,
@@ -174,6 +184,21 @@ def delete_article(
     if article is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
 
-    db.execute(delete(Article).where(Article.id == article.id))
+    db.execute(
+        update(VocabItem)
+        .where(VocabItem.user_id == current_user.id, VocabItem.source_article_id == article.id)
+        .values(source_article_id=None)
+    )
+    db.execute(
+        update(ProductEvent)
+        .where(ProductEvent.user_id == current_user.id, ProductEvent.article_id == article.id)
+        .values(article_id=None)
+    )
+    db.execute(delete(AIExplanation).where(AIExplanation.user_id == current_user.id, AIExplanation.article_id == article.id))
+    db.execute(delete(ReadingProgress).where(ReadingProgress.user_id == current_user.id, ReadingProgress.article_id == article.id))
+    db.execute(delete(Highlight).where(Highlight.user_id == current_user.id, Highlight.article_id == article.id))
+    db.execute(delete(TokenOccurrence).where(TokenOccurrence.article_id == article.id))
+    db.execute(delete(ArticleBlock).where(ArticleBlock.article_id == article.id))
+    db.execute(delete(Article).where(Article.id == article.id, Article.user_id == current_user.id))
     db.commit()
     return DeleteResponse(ok=True)

@@ -48,6 +48,7 @@ export default function LibraryPage() {
   const [epubFileName, setEpubFileName] = useState("");
   const [epubReadError, setEpubReadError] = useState("");
   const [isReadingEpub, setIsReadingEpub] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   const articlesQuery = useQuery({
     queryKey: ["articles"],
@@ -72,8 +73,14 @@ export default function LibraryPage() {
 
   const deleteMutation = useMutation({
     mutationFn: (articleId: string) => deleteArticle(articleId),
+    onMutate: () => {
+      setDeleteError("");
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["articles"] });
+    },
+    onError: (error) => {
+      setDeleteError((error as Error).message);
     },
   });
 
@@ -155,6 +162,7 @@ export default function LibraryPage() {
         <div data-testid="article-list" className="mt-4 space-y-3">
           {articlesQuery.isLoading ? <p className="text-sm">加载中...</p> : null}
           {articlesQuery.isError ? <p className="text-sm text-red-600">{(articlesQuery.error as Error).message}</p> : null}
+          {deleteError ? <p className="text-sm text-red-600">删除失败：{deleteError}</p> : null}
 
           {articles?.map((article) => (
             <div
@@ -186,10 +194,11 @@ export default function LibraryPage() {
                     继续阅读
                   </Link>
                   <button
-                    className="rounded-md border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 dark:border-red-800 dark:hover:bg-red-950"
+                    className="rounded-md border border-red-300 px-3 py-1 text-sm text-red-600 hover:bg-red-50 disabled:opacity-60 dark:border-red-800 dark:hover:bg-red-950"
+                    disabled={deleteMutation.isPending && deleteMutation.variables === article.id}
                     onClick={() => deleteMutation.mutate(article.id)}
                   >
-                    删除
+                    {deleteMutation.isPending && deleteMutation.variables === article.id ? "删除中..." : "删除"}
                   </button>
                 </div>
               </div>

@@ -35,9 +35,9 @@ test("reader critical flow smoke", async ({ page }) => {
         block_index: 1,
         text: "姿を見せた。",
         tokens: [
-          { surface: "姿", lemma: "姿", reading: "すがた", pos: "名詞", start_offset: 0, end_offset: 1, jlpt_level: "Unknown", frequency_band: "Unknown" },
+          { surface: "姿", lemma: "姿", reading: "すがた", pos: "名詞", start_offset: 0, end_offset: 1, jlpt_level: "N2", frequency_band: "Unknown" },
           { surface: "を", lemma: "を", reading: "を", pos: "助詞", start_offset: 1, end_offset: 2, jlpt_level: "Unknown", frequency_band: "Unknown" },
-          { surface: "見せた", lemma: "見せる", reading: "みせた", pos: "動詞", start_offset: 2, end_offset: 5, jlpt_level: "Unknown", frequency_band: "Unknown" },
+          { surface: "見せた", lemma: "見せる", reading: "みせた", pos: "動詞", start_offset: 2, end_offset: 5, jlpt_level: "N1", frequency_band: "Unknown" },
           { surface: "。", lemma: "。", reading: "。", pos: "記号", start_offset: 5, end_offset: 6, jlpt_level: "Unknown", frequency_band: "Unknown" },
         ],
       },
@@ -243,22 +243,40 @@ test("reader critical flow smoke", async ({ page }) => {
   await expect(page.getByTestId("reader-article-view")).toBeVisible();
   await expect(page.getByTestId("annotation-controls")).toBeVisible();
   await expect(page.getByTestId("annotation-controls")).toContainText("N3/N2/N1");
-  await expect(page.getByTestId("annotation-controls")).toContainText("未分级实词");
+  await expect(page.getByTestId("annotation-controls")).not.toContainText("未分级实词");
   const n3Annotated = await page.locator("[data-testid='reader-token']", { hasText: "はず" }).first().evaluate((node) =>
     node.className.includes("bg-sky")
   );
   expect(n3Annotated).toBeTruthy();
-  const unknownContentAnnotated = await page.locator("[data-testid='reader-token']", { hasText: "姿" }).first().evaluate((node) =>
-    node.className.includes("bg-stone")
+  const n2Annotated = await page.locator("[data-testid='reader-token']", { hasText: "姿" }).first().evaluate((node) =>
+    node.className.includes("bg-amber")
   );
-  expect(unknownContentAnnotated).toBeTruthy();
+  expect(n2Annotated).toBeTruthy();
+  const n1Annotated = await page.locator("[data-testid='reader-token']", { hasText: "見せた" }).first().evaluate((node) =>
+    node.className.includes("bg-rose")
+  );
+  expect(n1Annotated).toBeTruthy();
   const unknownParticleAnnotated = await page.locator("[data-testid='reader-token']", { hasText: "を" }).first().evaluate((node) =>
-    node.className.includes("bg-stone")
+    /bg-(sky|amber|rose|stone)/.test(node.className)
   );
   expect(unknownParticleAnnotated).toBeFalsy();
   const tokenClassName = await page.locator("[data-testid='reader-token']", { hasText: "彼" }).first().getAttribute("class");
   expect(tokenClassName).not.toContain("mx-");
   expect(tokenClassName).not.toContain("px-0.5");
+  await page.getByTestId("annotation-level-n2").click();
+  await expect.poll(() =>
+    page.locator("[data-testid='reader-token']", { hasText: "はず" }).first().evaluate((node) => node.className.includes("bg-sky"))
+  ).toBeFalsy();
+  await expect.poll(() =>
+    page.locator("[data-testid='reader-token']", { hasText: "姿" }).first().evaluate((node) => node.className.includes("bg-amber"))
+  ).toBeTruthy();
+  await page.getByTestId("annotation-level-n1").click();
+  await expect.poll(() =>
+    page.locator("[data-testid='reader-token']", { hasText: "姿" }).first().evaluate((node) => node.className.includes("bg-amber"))
+  ).toBeFalsy();
+  await expect.poll(() =>
+    page.locator("[data-testid='reader-token']", { hasText: "見せた" }).first().evaluate((node) => node.className.includes("bg-rose"))
+  ).toBeTruthy();
 
   await page.locator("[data-testid='reader-token']", { hasText: "来る" }).first().click();
   await expect(page.getByTestId("token-popup")).toBeVisible();

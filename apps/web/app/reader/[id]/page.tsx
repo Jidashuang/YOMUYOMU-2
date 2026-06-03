@@ -46,7 +46,7 @@ import type { SelectedTokenState, SelectionMenuState } from "./components/types"
 type AnnotationLevel = "N3" | "N2" | "N1";
 
 const ANNOTATION_LEVELS: Array<{ value: AnnotationLevel; label: string; description: string }> = [
-  { value: "N3", label: "N3+", description: "N3/N2/N1 + 未分级实词" },
+  { value: "N3", label: "N3+", description: "N3/N2/N1" },
   { value: "N2", label: "N2+", description: "N2/N1" },
   { value: "N1", label: "N1", description: "仅 N1" },
 ];
@@ -403,7 +403,6 @@ export default function ReaderPage() {
             <span className="rounded bg-sky-100 px-1.5 py-0.5 text-sky-950 dark:bg-sky-950/40 dark:text-sky-200">N3</span>
             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-950 dark:bg-amber-950/40 dark:text-amber-200">N2</span>
             <span className="rounded bg-rose-100 px-1.5 py-0.5 text-rose-950 dark:bg-rose-950/40 dark:text-rose-200">N1</span>
-            <span className="rounded bg-stone-200 px-1.5 py-0.5 text-zinc-950 dark:bg-zinc-700 dark:text-zinc-100">未分级</span>
           </div>
         </div>
       </header>

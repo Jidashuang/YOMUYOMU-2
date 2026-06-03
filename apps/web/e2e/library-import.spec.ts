@@ -185,6 +185,19 @@ test.describe("library import flow as validation entry", () => {
         },
       ],
     };
+    let articleSummaries = [
+      {
+        id: articleId,
+        title: processingArticle.title,
+        source_type: processingArticle.source_type,
+        status: processingArticle.status,
+        processing_error: null,
+        created_at: processingArticle.created_at,
+        processed_block_count: processingArticle.processed_block_count,
+        total_block_count: processingArticle.total_block_count,
+      },
+      failedArticle,
+    ];
 
     await page.route(`${API_BASE}/**`, async (route) => {
       const request = route.request();
@@ -207,20 +220,13 @@ test.describe("library import flow as validation entry", () => {
         return route.fulfill({
           status: 200,
           contentType: "application/json",
-          body: JSON.stringify([
-            {
-              id: articleId,
-              title: processingArticle.title,
-              source_type: processingArticle.source_type,
-              status: processingArticle.status,
-              processing_error: null,
-              created_at: processingArticle.created_at,
-              processed_block_count: processingArticle.processed_block_count,
-              total_block_count: processingArticle.total_block_count,
-            },
-            failedArticle,
-          ]),
+          body: JSON.stringify(articleSummaries),
         });
+      }
+
+      if (method === "DELETE" && url.pathname === `/articles/${failedArticle.id}`) {
+        articleSummaries = articleSummaries.filter((item) => item.id !== failedArticle.id);
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
       }
 
       if (method === "GET" && url.pathname === `/articles/${articleId}`) {
@@ -254,6 +260,12 @@ test.describe("library import flow as validation entry", () => {
     await expect(page.getByText("处理中 1/3")).toBeVisible();
     await expect(page.getByText("处理失败")).toBeVisible();
     await expect(page.getByText("Invalid EPUB zip archive")).toBeVisible();
+    await page
+      .getByTestId("article-list-item")
+      .filter({ hasText: "坏 EPUB" })
+      .getByRole("button", { name: "删除" })
+      .click();
+    await expect(page.getByText("坏 EPUB")).not.toBeVisible();
     await page
       .getByTestId("article-list-item")
       .filter({ hasText: "处理中 EPUB" })

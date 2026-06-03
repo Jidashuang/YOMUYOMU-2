@@ -17,9 +17,6 @@ const jlptClassMap: Record<JlptLevel, string> = {
   Unknown: "text-zinc-900 dark:text-zinc-200",
 };
 const neutralTokenClass = "text-zinc-900 dark:text-zinc-200";
-const unknownContentTokenClass =
-  "bg-stone-200/80 text-zinc-950 ring-1 ring-stone-300 dark:bg-zinc-700/70 dark:text-zinc-100 dark:ring-zinc-600";
-const contentPosMarkers = ["名詞", "動詞", "形容詞", "形状詞", "副詞", "連体詞", "noun", "verb", "adjective", "adverb"];
 
 const jlptRank: Record<AnnotationLevel, number> = {
   N3: 3,
@@ -34,20 +31,9 @@ function shouldAnnotate(tokenLevel: JlptLevel, annotationLevel: AnnotationLevel)
   return jlptRank[tokenLevel] <= jlptRank[annotationLevel];
 }
 
-function isUnknownContentToken(token: ArticleToken, annotationLevel: AnnotationLevel) {
-  return (
-    annotationLevel === "N3" &&
-    token.jlpt_level === "Unknown" &&
-    contentPosMarkers.some((marker) => token.pos.toLowerCase().includes(marker.toLowerCase()))
-  );
-}
-
 function annotationClassForToken(token: ArticleToken, annotationLevel: AnnotationLevel) {
   if (shouldAnnotate(token.jlpt_level, annotationLevel)) {
     return jlptClassMap[token.jlpt_level];
-  }
-  if (isUnknownContentToken(token, annotationLevel)) {
-    return unknownContentTokenClass;
   }
   return neutralTokenClass;
 }
