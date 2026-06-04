@@ -77,12 +77,12 @@ export default function ReaderPage() {
   const [activePanel, setActivePanel] = useState<ReaderPanelKey | null>(null);
   const [pagingMode, setPagingMode] = useState<ReaderPagingMode>("scroll");
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
-  const [pendingJumpBlockId, setPendingJumpBlockId] = useState<string | null>(null);
   const touchStartXRef = useRef<number | null>(null);
+  const pageBlockOffset = currentPageIndex * READER_BLOCKS_PER_PAGE;
 
   const articleQuery = useQuery({
-    queryKey: ["article", articleId],
-    queryFn: () => getArticle(articleId),
+    queryKey: ["article", articleId, currentPageIndex],
+    queryFn: () => getArticle(articleId, { blockOffset: pageBlockOffset, blockLimit: READER_BLOCKS_PER_PAGE }),
     enabled: hydrated && isAuthorized,
     refetchInterval: (query) => (query.state.data?.status === "processing" ? 2000 : false),
   });
@@ -90,7 +90,7 @@ export default function ReaderPage() {
   const highlightsQuery = useQuery({
     queryKey: ["highlights", articleId],
     queryFn: () => listHighlights(articleId),
-    enabled: hydrated && isAuthorized && Boolean(articleQuery.data?.blocks.length),
+    enabled: hydrated && isAuthorized && Boolean(articleQuery.data),
   });
 
   const progressQuery = useQuery({
@@ -251,18 +251,17 @@ export default function ReaderPage() {
 
   const highlightCount = highlightsQuery.data?.length ?? 0;
   const articleBlocks = articleQuery.data?.blocks ?? [];
-  const totalReaderPages = Math.max(1, Math.ceil(articleBlocks.length / READER_BLOCKS_PER_PAGE));
+  const loadedBlockCount = pageBlockOffset + articleBlocks.length;
+  const totalKnownBlockCount = articleQuery.data?.total_block_count ?? Math.max(articleQuery.data?.processed_block_count ?? 0, loadedBlockCount);
+  const visibleBlockCount =
+    articleQuery.data?.status === "processing"
+      ? Math.max(articleQuery.data.processed_block_count, loadedBlockCount)
+      : totalKnownBlockCount;
+  const totalReaderPages = Math.max(1, Math.ceil(visibleBlockCount / READER_BLOCKS_PER_PAGE));
   const currentReaderPage = Math.min(currentPageIndex, totalReaderPages - 1);
-  const currentPageBlocks = useMemo(
-    () =>
-      articleBlocks.slice(
-        currentReaderPage * READER_BLOCKS_PER_PAGE,
-        currentReaderPage * READER_BLOCKS_PER_PAGE + READER_BLOCKS_PER_PAGE
-      ),
-    [articleBlocks, currentReaderPage]
-  );
-  const pageBlockStart = articleBlocks.length === 0 ? 0 : currentReaderPage * READER_BLOCKS_PER_PAGE + 1;
-  const pageBlockEnd = Math.min(articleBlocks.length, (currentReaderPage + 1) * READER_BLOCKS_PER_PAGE);
+  const currentPageBlocks = articleBlocks;
+  const pageBlockStart = currentPageBlocks.length === 0 ? 0 : pageBlockOffset + 1;
+  const pageBlockEnd = currentPageBlocks.length === 0 ? 0 : pageBlockOffset + currentPageBlocks.length;
 
   const goToReaderPage = (pageIndex: number) => {
     setSelectedToken(null);
@@ -280,20 +279,6 @@ export default function ReaderPage() {
       setCurrentPageIndex(totalReaderPages - 1);
     }
   }, [currentPageIndex, totalReaderPages]);
-
-  useEffect(() => {
-    if (!pendingJumpBlockId) {
-      return;
-    }
-    const target = document.getElementById(`reader-block-${pendingJumpBlockId}`);
-    if (!target) {
-      return;
-    }
-    target.scrollIntoView({ behavior: "smooth", block: "center" });
-    target.classList.add("reader-block-flash");
-    window.setTimeout(() => target.classList.remove("reader-block-flash"), 1200);
-    setPendingJumpBlockId(null);
-  }, [currentReaderPage, pendingJumpBlockId]);
 
   useEffect(() => {
     if (pagingMode !== "swipe") {
@@ -332,15 +317,6 @@ export default function ReaderPage() {
   const handleSearchJump = (blockId: string) => {
     if (typeof document === "undefined") {
       return;
-    }
-    const blockIndex = articleBlocks.findIndex((item) => item.id === blockId);
-    if (blockIndex >= 0) {
-      const pageIndex = Math.floor(blockIndex / READER_BLOCKS_PER_PAGE);
-      if (pageIndex !== currentReaderPage) {
-        setPendingJumpBlockId(blockId);
-        goToReaderPage(pageIndex);
-        return;
-      }
     }
     const target = document.getElementById(`reader-block-${blockId}`);
     if (!target) {
@@ -437,7 +413,7 @@ export default function ReaderPage() {
     {
       key: "search",
       title: "搜索",
-      content: <SearchPanel blocks={articleBlocks} onJump={handleSearchJump} />,
+      content: <SearchPanel blocks={currentPageBlocks} onJump={handleSearchJump} />,
     },
     {
       key: "highlights",
@@ -541,6 +517,7 @@ export default function ReaderPage() {
       />
 
       {articleQuery.isLoading ? <p>加载文章中...</p> : null}
+      {articleQuery.isFetching && !articleQuery.isLoading ? <p className="text-sm text-zinc-500">加载本页中...</p> : null}
       {articleQuery.isError ? <p className="text-red-600">{(articleQuery.error as Error).message}</p> : null}
 
       {articleBlocks.length > 0 ? (
@@ -554,7 +531,7 @@ export default function ReaderPage() {
                 第 {currentReaderPage + 1} / {totalReaderPages} 页
               </p>
               <p className="text-xs text-zinc-500">
-                段落 {pageBlockStart}-{pageBlockEnd} / {articleBlocks.length}
+                段落 {pageBlockStart}-{pageBlockEnd} / {visibleBlockCount}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -629,7 +606,7 @@ export default function ReaderPage() {
         </div>
       ) : null}
 
-      {articleQuery.data && articleBlocks.length === 0 && !articleQuery.isLoading ? (
+      {articleQuery.data && articleBlocks.length === 0 && !articleQuery.isLoading && !articleQuery.isFetching ? (
         <div className="rounded-xl border border-dashed border-stone-300 bg-stone-50 p-5 text-sm text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
           {articleQuery.data.status === "failed" ? "没有可显示的正文。" : "正文还在生成中，稍后会自动显示。"}
         </div>

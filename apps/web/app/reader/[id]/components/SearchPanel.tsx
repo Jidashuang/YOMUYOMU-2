@@ -15,8 +15,7 @@ interface SearchHit {
 }
 
 /**
- * In-document search for the current article only (first version — no backend full-text
- * search, no cross-article search). It only reads block text and reports matches; jumping
+ * In-page search for the currently loaded reader page. It only reads block text and reports matches; jumping
  * is delegated to the reader via onJump, so it never touches the token spans and therefore
  * does not interfere with token clicks or text selection.
  *
@@ -71,12 +70,12 @@ export function SearchPanel({ blocks, onJump }: SearchPanelProps) {
         type="search"
         value={query}
         onChange={(event) => setQuery(event.target.value)}
-        placeholder="在本篇文章内查找…"
+        placeholder="在当前页查找…"
         className="w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-brand-500 focus:outline-none dark:border-zinc-700 dark:text-zinc-100"
       />
 
       {!trimmed ? (
-        <p className="text-sm text-zinc-500">输入关键词，在当前文章内查找并跳转到对应段落。</p>
+        <p className="text-sm text-zinc-500">输入关键词，在当前页查找并跳转到对应段落。</p>
       ) : hits.length === 0 ? (
         <p data-testid="reader-search-empty" className="text-sm text-zinc-500">
           未找到「{trimmed}」。

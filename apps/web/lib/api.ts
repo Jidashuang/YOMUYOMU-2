@@ -65,8 +65,21 @@ export function listArticles(): Promise<ArticleSummary[]> {
   return requestJson<ArticleSummary[]>("/articles", { auth: true });
 }
 
-export function getArticle(articleId: string): Promise<ArticleDetail> {
-  return requestJson<ArticleDetail>(`/articles/${articleId}`, { auth: true });
+interface ArticleBlockPageOptions {
+  blockOffset?: number;
+  blockLimit?: number;
+}
+
+export function getArticle(articleId: string, options: ArticleBlockPageOptions = {}): Promise<ArticleDetail> {
+  const search = new URLSearchParams();
+  if (options.blockOffset !== undefined) {
+    search.set("block_offset", String(options.blockOffset));
+  }
+  if (options.blockLimit !== undefined) {
+    search.set("block_limit", String(options.blockLimit));
+  }
+  const suffix = search.toString() ? `?${search.toString()}` : "";
+  return requestJson<ArticleDetail>(`/articles/${articleId}${suffix}`, { auth: true });
 }
 
 export function deleteArticle(articleId: string): Promise<{ ok: boolean }> {

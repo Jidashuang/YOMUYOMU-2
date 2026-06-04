@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
@@ -33,15 +33,31 @@ from app.services.product_analytics import EVENT_ARTICLE_CREATED, record_product
 router = APIRouter(prefix="/articles", tags=["articles"])
 
 
-def _build_article_detail(db: Session, article: Article) -> ArticleDetailResponse:
-    blocks = db.scalars(
-        select(ArticleBlock).where(ArticleBlock.article_id == article.id).order_by(ArticleBlock.block_index.asc())
-    ).all()
-    token_rows = db.scalars(
-        select(TokenOccurrence)
-        .where(TokenOccurrence.article_id == article.id)
-        .order_by(TokenOccurrence.block_id.asc(), TokenOccurrence.token_index.asc())
-    ).all()
+def _build_article_detail(
+    db: Session,
+    article: Article,
+    *,
+    block_offset: int = 0,
+    block_limit: int | None = None,
+) -> ArticleDetailResponse:
+    block_query = (
+        select(ArticleBlock)
+        .where(ArticleBlock.article_id == article.id)
+        .order_by(ArticleBlock.block_index.asc())
+        .offset(block_offset)
+    )
+    if block_limit is not None:
+        block_query = block_query.limit(block_limit)
+    blocks = db.scalars(block_query).all()
+
+    block_ids = [block.id for block in blocks]
+    token_rows = []
+    if block_ids:
+        token_rows = db.scalars(
+            select(TokenOccurrence)
+            .where(TokenOccurrence.article_id == article.id, TokenOccurrence.block_id.in_(block_ids))
+            .order_by(TokenOccurrence.block_id.asc(), TokenOccurrence.token_index.asc())
+        ).all()
 
     tokens_by_block: dict[str, list[ArticleTokenResponse]] = {}
     for token in token_rows:
@@ -69,9 +85,14 @@ def _build_article_detail(db: Session, article: Article) -> ArticleDetailRespons
         for block in blocks
     ]
 
-    normalized_content = article.normalized_content
-    if not normalized_content and article.source_type == "text":
-        normalized_content = article.raw_content
+    if block_limit is None:
+        raw_content = article.raw_content
+        normalized_content = article.normalized_content
+        if not normalized_content and article.source_type == "text":
+            normalized_content = article.raw_content
+    else:
+        raw_content = ""
+        normalized_content = ""
 
     return ArticleDetailResponse(
         id=article.id,
@@ -82,7 +103,7 @@ def _build_article_detail(db: Session, article: Article) -> ArticleDetailRespons
         created_at=article.created_at,
         processed_block_count=article.processed_block_count,
         total_block_count=article.total_block_count,
-        raw_content=article.raw_content,
+        raw_content=raw_content,
         normalized_content=normalized_content or "",
         blocks=block_responses,
     )
@@ -155,6 +176,8 @@ def list_articles(
 @router.get("/{article_id}", response_model=ArticleDetailResponse)
 def get_article(
     article_id: str,
+    block_offset: int = Query(default=0, ge=0),
+    block_limit: int | None = Query(default=None, ge=0, le=100),
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ) -> ArticleDetailResponse:
@@ -166,7 +189,7 @@ def get_article(
     article = db.scalar(select(Article).where(Article.id == article_uuid, Article.user_id == current_user.id))
     if article is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
-    return _build_article_detail(db, article)
+    return _build_article_detail(db, article, block_offset=block_offset, block_limit=block_limit)
 
 
 @router.delete("/{article_id}", response_model=DeleteResponse)
