@@ -7,6 +7,11 @@ test.describe("library import flow as validation entry", () => {
 
   test("first-time user can open a public book or paste a real passage", async ({ page }) => {
     let articles: Array<Record<string, unknown>> = [];
+    let lastCreatedPayload: { title: string; raw_content: string; source_type: string } = {
+      title: "",
+      raw_content: "",
+      source_type: "",
+    };
 
     let article = {
       id: articleId,
@@ -52,6 +57,7 @@ test.describe("library import flow as validation entry", () => {
 
       if (method === "POST" && url.pathname === "/articles") {
         const payload = (await request.postDataJSON()) as { title: string; raw_content: string; source_type: string };
+        lastCreatedPayload = payload;
         article = {
           ...article,
           title: payload.title,
@@ -120,6 +126,9 @@ test.describe("library import flow as validation entry", () => {
     // A default public-domain book can create a real reader session.
     await page.getByTestId("public-book-start-rashomon").click();
     await expect(page).toHaveURL(new RegExp(`/reader/${articleId}$`));
+    expect(lastCreatedPayload.title).toBe("羅生門");
+    expect(lastCreatedPayload.raw_content.length).toBeGreaterThan(1000);
+    expect(lastCreatedPayload.raw_content).toContain("下人の行方は、誰も知らない。");
 
     await page.goto("/library");
 

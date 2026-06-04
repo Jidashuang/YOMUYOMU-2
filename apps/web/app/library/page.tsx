@@ -7,7 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { createArticle, deleteArticle, listArticles } from "../../lib/api";
-import { PUBLIC_BOOKS } from "../../lib/public-books";
+import { PUBLIC_BOOKS, type PublicBook } from "../../lib/public-books";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 const MAX_EPUB_FILE_BYTES = 20 * 1024 * 1024;
@@ -49,6 +49,8 @@ export default function LibraryPage() {
   const [epubReadError, setEpubReadError] = useState("");
   const [isReadingEpub, setIsReadingEpub] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [publicBookError, setPublicBookError] = useState("");
+  const [importingPublicBookSlug, setImportingPublicBookSlug] = useState<string | null>(null);
 
   const articlesQuery = useQuery({
     queryKey: ["articles"],
@@ -83,6 +85,34 @@ export default function LibraryPage() {
       setDeleteError((error as Error).message);
     },
   });
+
+  async function importPublicBook(book: PublicBook) {
+    setPublicBookError("");
+    setImportingPublicBookSlug(book.slug);
+    try {
+      const response = await fetch(book.contentPath);
+      if (!response.ok) {
+        throw new Error("完整文本读取失败，请稍后再试。");
+      }
+      const content = (await response.text()).trim();
+      if (!content) {
+        throw new Error("完整文本为空，请稍后再试。");
+      }
+      createMutation.mutate(
+        {
+          title: book.title,
+          source_type: "text",
+          raw_content: content,
+        },
+        {
+          onSettled: () => setImportingPublicBookSlug(null),
+        }
+      );
+    } catch (error) {
+      setImportingPublicBookSlug(null);
+      setPublicBookError((error as Error).message);
+    }
+  }
 
   function readEpubFile(file: File | undefined) {
     setSourceType("epub");
@@ -225,13 +255,15 @@ export default function LibraryPage() {
           <div>
             <p className="text-[11px] font-medium uppercase tracking-wider text-stone-500">Public domain shelf</p>
             <h2 className="mt-0.5 text-lg font-semibold">默认书架</h2>
-            <p className="mt-1 text-xs text-zinc-500">不知道读什么时，从这里挑一段公共领域名著开始。</p>
+            <p className="mt-1 text-xs text-zinc-500">不知道读什么时，从这里挑一本公共领域名著开始。</p>
           </div>
-          <p className="text-xs text-zinc-500">来源标注为青空文庫，第一版先导入节选精读。</p>
+          <p className="text-xs text-zinc-500">来源标注为青空文庫，导入完整文本。</p>
         </div>
+        {publicBookError ? <p className="mt-3 text-sm text-red-600">{publicBookError}</p> : null}
         <div data-testid="public-bookshelf" className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {PUBLIC_BOOKS.map((book) => {
-            const isImporting = createMutation.isPending && createMutation.variables?.title === book.title;
+            const isImporting =
+              importingPublicBookSlug === book.slug || (createMutation.isPending && createMutation.variables?.title === book.title);
             return (
               <div
                 key={book.slug}
@@ -257,16 +289,12 @@ export default function LibraryPage() {
                   type="button"
                   data-testid={`public-book-start-${book.slug}`}
                   className="mt-3 rounded-md bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
-                  disabled={createMutation.isPending}
-                  onClick={() =>
-                    createMutation.mutate({
-                      title: book.title,
-                      source_type: "text",
-                      raw_content: book.excerpt,
-                    })
-                  }
+                  disabled={createMutation.isPending || Boolean(importingPublicBookSlug)}
+                  onClick={() => {
+                    void importPublicBook(book);
+                  }}
                 >
-                  {isImporting ? "打开中..." : "开始精读"}
+                  {isImporting ? "读取中..." : "开始精读"}
                 </button>
               </div>
             );
