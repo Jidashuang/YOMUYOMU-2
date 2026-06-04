@@ -76,6 +76,7 @@ def test_article_processing_keeps_completed_blocks_when_later_block_fails(monkey
 
     testing_session_local = sessionmaker(bind=engine)
     monkeypatch.setattr(article_processing, "SessionLocal", testing_session_local)
+    monkeypatch.setattr(article_processing, "MAX_NLP_CHUNK_CHARS", 4)
 
     def annotate(text: str) -> list[dict[str, object]]:
         if "二段目" in text:
@@ -123,8 +124,9 @@ def test_article_processing_keeps_completed_blocks_when_later_block_fails(monkey
 
         blocks = db.scalars(select(ArticleBlock).where(ArticleBlock.article_id == article_id)).all()
         tokens = db.scalars(select(TokenOccurrence).where(TokenOccurrence.article_id == article_id)).all()
-        assert len(blocks) == 1
+        assert len(blocks) == 2
         assert blocks[0].text == "一段目。"
+        assert blocks[1].text == "二段目。"
         assert len(tokens) == 1
 
 

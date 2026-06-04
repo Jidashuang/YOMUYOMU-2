@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import threading
 from time import perf_counter
 from uuid import UUID
@@ -17,6 +18,8 @@ logger = logging.getLogger(__name__)
 
 _recovery_started = False
 _recovery_lock = threading.Lock()
+MAX_TEXT_BLOCK_CHARS = 1200
+MAX_NLP_CHUNK_CHARS = 3000
 
 
 def normalize_content(raw_content: str) -> str:
@@ -24,10 +27,35 @@ def normalize_content(raw_content: str) -> str:
 
 
 def split_text_blocks(content: str) -> list[str]:
-    lines = [line.strip() for line in content.split("\n") if line.strip()]
+    lines = []
+    for line in [line.strip() for line in content.split("\n") if line.strip()]:
+        lines.extend(_split_long_block(line))
     if lines:
         return lines
-    return [content] if content else []
+    return _split_long_block(content) if content else []
+
+
+def _split_long_block(text: str) -> list[str]:
+    if len(text) <= MAX_TEXT_BLOCK_CHARS:
+        return [text]
+
+    parts: list[str] = []
+    current = ""
+    for sentence in re.findall(r".+?[。！？!?]|.+$", text):
+        if len(sentence) > MAX_TEXT_BLOCK_CHARS:
+            if current:
+                parts.append(current)
+                current = ""
+            parts.extend(sentence[i : i + MAX_TEXT_BLOCK_CHARS] for i in range(0, len(sentence), MAX_TEXT_BLOCK_CHARS))
+            continue
+        if current and len(current) + len(sentence) > MAX_TEXT_BLOCK_CHARS:
+            parts.append(current)
+            current = sentence
+        else:
+            current += sentence
+    if current:
+        parts.append(current)
+    return [part for part in parts if part]
 
 
 def _parse_article_content(source_type: str, raw_content: str) -> str:
@@ -44,6 +72,78 @@ def _safe_int(value: object, fallback: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return fallback
+
+
+def _iter_annotation_chunks(blocks: list[ArticleBlock]) -> list[list[ArticleBlock]]:
+    chunks: list[list[ArticleBlock]] = []
+    current: list[ArticleBlock] = []
+    current_len = 0
+    for block in blocks:
+        block_len = len(block.text)
+        separator_len = 1 if current else 0
+        if current and current_len + separator_len + block_len > MAX_NLP_CHUNK_CHARS:
+            chunks.append(current)
+            current = [block]
+            current_len = block_len
+            continue
+        current.append(block)
+        current_len += separator_len + block_len
+    if current:
+        chunks.append(current)
+    return chunks
+
+
+def _build_annotation_text(blocks: list[ArticleBlock]) -> tuple[str, list[tuple[ArticleBlock, int, int]]]:
+    parts: list[str] = []
+    offsets: list[tuple[ArticleBlock, int, int]] = []
+    cursor = 0
+    for block in blocks:
+        if parts:
+            parts.append("\n")
+            cursor += 1
+        start = cursor
+        parts.append(block.text)
+        cursor += len(block.text)
+        offsets.append((block, start, cursor))
+    return "".join(parts), offsets
+
+
+def _add_chunk_tokens(db, article: Article, blocks: list[ArticleBlock], tokens: list[dict]) -> int:  # noqa: ANN001
+    token_count = 0
+    block_token_indexes = {block.id: 0 for block in blocks}
+    _, offsets = _build_annotation_text(blocks)
+    offset_index = 0
+
+    for token in tokens:
+        start = _safe_int(token.get("start"))
+        end = _safe_int(token.get("end"))
+        while offset_index < len(offsets) and start >= offsets[offset_index][2]:
+            offset_index += 1
+        if offset_index >= len(offsets):
+            continue
+
+        block, block_start, block_end = offsets[offset_index]
+        if start < block_start or end > block_end:
+            continue
+
+        db.add(
+            TokenOccurrence(
+                article_id=article.id,
+                block_id=block.id,
+                token_index=block_token_indexes[block.id],
+                surface=str(token.get("surface", "")),
+                lemma=str(token.get("lemma", "")),
+                reading=str(token.get("reading", "")),
+                pos=str(token.get("pos", "unknown")),
+                start_offset=start - block_start,
+                end_offset=end - block_start,
+                jlpt_level=str(token.get("jlpt_level") or "Unknown"),
+                frequency_band=str(token.get("frequency_band") or "Unknown"),
+            )
+        )
+        block_token_indexes[block.id] += 1
+        token_count += 1
+    return token_count
 
 
 def process_article(article_id: UUID) -> None:
@@ -90,34 +190,20 @@ def process_article(article_id: UUID) -> None:
 
         db.execute(delete(TokenOccurrence).where(TokenOccurrence.article_id == article.id))
         db.execute(delete(ArticleBlock).where(ArticleBlock.article_id == article.id))
+        db.flush()
+        for block_index, block_text in enumerate(block_texts):
+            db.add(ArticleBlock(article_id=article.id, block_index=block_index, text=block_text))
         db.commit()
 
-        block_count = 0
+        blocks = db.scalars(
+            select(ArticleBlock).where(ArticleBlock.article_id == article.id).order_by(ArticleBlock.block_index.asc())
+        ).all()
+        block_count = len(blocks)
         token_count = 0
-        for block_index, block_text in enumerate(block_texts):
-            block = ArticleBlock(article_id=article.id, block_index=block_index, text=block_text)
-            db.add(block)
-            db.flush()
-            block_count += 1
-
-            for token_index, token in enumerate(nlp_client.annotate(block_text)):
-                db.add(
-                    TokenOccurrence(
-                        article_id=article.id,
-                        block_id=block.id,
-                        token_index=token_index,
-                        surface=str(token.get("surface", "")),
-                        lemma=str(token.get("lemma", "")),
-                        reading=str(token.get("reading", "")),
-                        pos=str(token.get("pos", "unknown")),
-                        start_offset=_safe_int(token.get("start")),
-                        end_offset=_safe_int(token.get("end")),
-                        jlpt_level=str(token.get("jlpt_level") or "Unknown"),
-                        frequency_band=str(token.get("frequency_band") or "Unknown"),
-                    )
-                )
-                token_count += 1
-            article.processed_block_count = block_index + 1
+        for chunk in _iter_annotation_chunks(blocks):
+            annotation_text, _ = _build_annotation_text(chunk)
+            token_count += _add_chunk_tokens(db, article, chunk, nlp_client.annotate(annotation_text))
+            article.processed_block_count = chunk[-1].block_index + 1
             db.commit()
 
         if token_count == 0:
