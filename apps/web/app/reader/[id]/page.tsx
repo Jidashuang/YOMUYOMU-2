@@ -3,7 +3,8 @@
 import type { AIExplanationResponse, ArticleDetail, HighlightResponse, SuggestedVocabItem } from "@yomuyomu/shared-types";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import type { TouchEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import {
@@ -44,12 +45,14 @@ import { TokenPopup } from "./components/TokenPopup";
 import type { SelectedTokenState, SelectionMenuState } from "./components/types";
 
 type AnnotationLevel = "N3" | "N2" | "N1";
+type ReaderPagingMode = "scroll" | "swipe";
 
 const ANNOTATION_LEVELS: Array<{ value: AnnotationLevel; label: string; description: string }> = [
   { value: "N3", label: "N3+", description: "N3/N2/N1" },
   { value: "N2", label: "N2+", description: "N2/N1" },
   { value: "N1", label: "N1", description: "仅 N1" },
 ];
+const READER_BLOCKS_PER_PAGE = 18;
 
 function processingProgressText(article: ArticleDetail) {
   if (article.total_block_count !== null) {
@@ -72,6 +75,10 @@ export default function ReaderPage() {
   const [addingSuggestedKey, setAddingSuggestedKey] = useState<string | null>(null);
   const [annotationLevel, setAnnotationLevel] = useState<AnnotationLevel>("N3");
   const [activePanel, setActivePanel] = useState<ReaderPanelKey | null>(null);
+  const [pagingMode, setPagingMode] = useState<ReaderPagingMode>("scroll");
+  const [currentPageIndex, setCurrentPageIndex] = useState(0);
+  const [pendingJumpBlockId, setPendingJumpBlockId] = useState<string | null>(null);
+  const touchStartXRef = useRef<number | null>(null);
 
   const articleQuery = useQuery({
     queryKey: ["article", articleId],
@@ -242,6 +249,70 @@ export default function ReaderPage() {
     },
   });
 
+  const highlightCount = highlightsQuery.data?.length ?? 0;
+  const articleBlocks = articleQuery.data?.blocks ?? [];
+  const totalReaderPages = Math.max(1, Math.ceil(articleBlocks.length / READER_BLOCKS_PER_PAGE));
+  const currentReaderPage = Math.min(currentPageIndex, totalReaderPages - 1);
+  const currentPageBlocks = useMemo(
+    () =>
+      articleBlocks.slice(
+        currentReaderPage * READER_BLOCKS_PER_PAGE,
+        currentReaderPage * READER_BLOCKS_PER_PAGE + READER_BLOCKS_PER_PAGE
+      ),
+    [articleBlocks, currentReaderPage]
+  );
+  const pageBlockStart = articleBlocks.length === 0 ? 0 : currentReaderPage * READER_BLOCKS_PER_PAGE + 1;
+  const pageBlockEnd = Math.min(articleBlocks.length, (currentReaderPage + 1) * READER_BLOCKS_PER_PAGE);
+
+  const goToReaderPage = (pageIndex: number) => {
+    setSelectedToken(null);
+    setSelectionMenu(null);
+    setSelectionError(null);
+    window.getSelection()?.removeAllRanges();
+    setCurrentPageIndex(Math.min(Math.max(pageIndex, 0), totalReaderPages - 1));
+  };
+
+  const goToPreviousPage = () => goToReaderPage(currentReaderPage - 1);
+  const goToNextPage = () => goToReaderPage(currentReaderPage + 1);
+
+  useEffect(() => {
+    if (currentPageIndex >= totalReaderPages) {
+      setCurrentPageIndex(totalReaderPages - 1);
+    }
+  }, [currentPageIndex, totalReaderPages]);
+
+  useEffect(() => {
+    if (!pendingJumpBlockId) {
+      return;
+    }
+    const target = document.getElementById(`reader-block-${pendingJumpBlockId}`);
+    if (!target) {
+      return;
+    }
+    target.scrollIntoView({ behavior: "smooth", block: "center" });
+    target.classList.add("reader-block-flash");
+    window.setTimeout(() => target.classList.remove("reader-block-flash"), 1200);
+    setPendingJumpBlockId(null);
+  }, [currentReaderPage, pendingJumpBlockId]);
+
+  useEffect(() => {
+    if (pagingMode !== "swipe") {
+      return;
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "ArrowLeft") {
+        event.preventDefault();
+        goToPreviousPage();
+      }
+      if (event.key === "ArrowRight") {
+        event.preventDefault();
+        goToNextPage();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentReaderPage, pagingMode, totalReaderPages]);
+
   if (!hydrated) {
     return <p className="text-sm text-zinc-500">认证状态加载中...</p>;
   }
@@ -258,12 +329,18 @@ export default function ReaderPage() {
     );
   }
 
-  const highlightCount = highlightsQuery.data?.length ?? 0;
-  const articleBlocks = articleQuery.data?.blocks ?? [];
-
   const handleSearchJump = (blockId: string) => {
     if (typeof document === "undefined") {
       return;
+    }
+    const blockIndex = articleBlocks.findIndex((item) => item.id === blockId);
+    if (blockIndex >= 0) {
+      const pageIndex = Math.floor(blockIndex / READER_BLOCKS_PER_PAGE);
+      if (pageIndex !== currentReaderPage) {
+        setPendingJumpBlockId(blockId);
+        goToReaderPage(pageIndex);
+        return;
+      }
     }
     const target = document.getElementById(`reader-block-${blockId}`);
     if (!target) {
@@ -278,6 +355,30 @@ export default function ReaderPage() {
     if (window.matchMedia("(max-width: 767px)").matches) {
       setActivePanel(null);
     }
+  };
+
+  const handleReaderTouchStart = (event: TouchEvent<HTMLDivElement>) => {
+    if (pagingMode !== "swipe") {
+      return;
+    }
+    touchStartXRef.current = event.touches[0]?.clientX ?? null;
+  };
+
+  const handleReaderTouchEnd = (event: TouchEvent<HTMLDivElement>) => {
+    if (pagingMode !== "swipe" || touchStartXRef.current === null) {
+      return;
+    }
+    const endX = event.changedTouches[0]?.clientX ?? touchStartXRef.current;
+    const deltaX = endX - touchStartXRef.current;
+    touchStartXRef.current = null;
+    if (Math.abs(deltaX) < 60) {
+      return;
+    }
+    if (deltaX < 0) {
+      goToNextPage();
+      return;
+    }
+    goToPreviousPage();
   };
 
   const activityItems: ReaderActivityItem[] = [
@@ -443,16 +544,89 @@ export default function ReaderPage() {
       {articleQuery.isError ? <p className="text-red-600">{(articleQuery.error as Error).message}</p> : null}
 
       {articleBlocks.length > 0 ? (
-        <ReaderArticleView
-          blocks={articleBlocks}
-          annotationLevel={annotationLevel}
-          highlightsByBlock={highlightsByBlock}
-          onTokenSelect={setSelectedToken}
-          onSelectionChange={(menu, error) => {
-            setSelectionMenu(menu);
-            setSelectionError(error);
-          }}
-        />
+        <div className="space-y-3">
+          <div
+            data-testid="reader-pagination-controls"
+            className="flex flex-col gap-3 rounded-lg border border-stone-200 bg-white p-3 text-sm dark:border-zinc-800 dark:bg-zinc-900 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div>
+              <p className="font-medium text-zinc-900 dark:text-zinc-100">
+                第 {currentReaderPage + 1} / {totalReaderPages} 页
+              </p>
+              <p className="text-xs text-zinc-500">
+                段落 {pageBlockStart}-{pageBlockEnd} / {articleBlocks.length}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="inline-flex rounded-md border border-stone-300 bg-white p-1 dark:border-zinc-700 dark:bg-zinc-950">
+                <button
+                  type="button"
+                  data-testid="reader-mode-scroll"
+                  className={`rounded px-3 py-1.5 text-xs ${
+                    pagingMode === "scroll"
+                      ? "bg-zinc-950 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                      : "text-zinc-600 hover:bg-stone-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  }`}
+                  onClick={() => setPagingMode("scroll")}
+                >
+                  向下滚动
+                </button>
+                <button
+                  type="button"
+                  data-testid="reader-mode-swipe"
+                  className={`rounded px-3 py-1.5 text-xs ${
+                    pagingMode === "swipe"
+                      ? "bg-zinc-950 text-white dark:bg-zinc-100 dark:text-zinc-950"
+                      : "text-zinc-600 hover:bg-stone-100 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                  }`}
+                  onClick={() => setPagingMode("swipe")}
+                >
+                  左右翻页
+                </button>
+              </div>
+              <button
+                type="button"
+                data-testid="reader-prev-page"
+                disabled={currentReaderPage === 0}
+                className="rounded-md border border-stone-300 px-3 py-1.5 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-200"
+                onClick={goToPreviousPage}
+              >
+                上一页
+              </button>
+              <button
+                type="button"
+                data-testid="reader-next-page"
+                disabled={currentReaderPage >= totalReaderPages - 1}
+                className="rounded-md border border-stone-300 px-3 py-1.5 text-sm text-zinc-700 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700 dark:text-zinc-200"
+                onClick={goToNextPage}
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+
+          <div
+            data-testid="reader-page-frame"
+            className={
+              pagingMode === "scroll"
+                ? "max-h-[calc(100vh-14rem)] overflow-y-auto overscroll-contain rounded-2xl"
+                : "rounded-2xl touch-pan-y"
+            }
+            onTouchStart={handleReaderTouchStart}
+            onTouchEnd={handleReaderTouchEnd}
+          >
+            <ReaderArticleView
+              blocks={currentPageBlocks}
+              annotationLevel={annotationLevel}
+              highlightsByBlock={highlightsByBlock}
+              onTokenSelect={setSelectedToken}
+              onSelectionChange={(menu, error) => {
+                setSelectionMenu(menu);
+                setSelectionError(error);
+              }}
+            />
+          </div>
+        </div>
       ) : null}
 
       {articleQuery.data && articleBlocks.length === 0 && !articleQuery.isLoading ? (

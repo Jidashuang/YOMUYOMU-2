@@ -6,7 +6,7 @@ import threading
 from time import perf_counter
 from uuid import UUID
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, insert, select
 
 from app.db.session import SessionLocal
 from app.models.entities import Article, ArticleBlock, TokenOccurrence
@@ -109,7 +109,7 @@ def _build_annotation_text(blocks: list[ArticleBlock]) -> tuple[str, list[tuple[
 
 
 def _add_chunk_tokens(db, article: Article, blocks: list[ArticleBlock], tokens: list[dict]) -> int:  # noqa: ANN001
-    token_count = 0
+    rows: list[dict[str, object]] = []
     block_token_indexes = {block.id: 0 for block in blocks}
     _, offsets = _build_annotation_text(blocks)
     offset_index = 0
@@ -126,23 +126,50 @@ def _add_chunk_tokens(db, article: Article, blocks: list[ArticleBlock], tokens: 
         if start < block_start or end > block_end:
             continue
 
-        db.add(
-            TokenOccurrence(
-                article_id=article.id,
-                block_id=block.id,
-                token_index=block_token_indexes[block.id],
-                surface=str(token.get("surface", "")),
-                lemma=str(token.get("lemma", "")),
-                reading=str(token.get("reading", "")),
-                pos=str(token.get("pos", "unknown")),
-                start_offset=start - block_start,
-                end_offset=end - block_start,
-                jlpt_level=str(token.get("jlpt_level") or "Unknown"),
-                frequency_band=str(token.get("frequency_band") or "Unknown"),
-            )
+        rows.append(
+            {
+                "article_id": article.id,
+                "block_id": block.id,
+                "token_index": block_token_indexes[block.id],
+                "surface": str(token.get("surface", "")),
+                "lemma": str(token.get("lemma", "")),
+                "reading": str(token.get("reading", "")),
+                "pos": str(token.get("pos", "unknown")),
+                "start_offset": start - block_start,
+                "end_offset": end - block_start,
+                "jlpt_level": str(token.get("jlpt_level") or "Unknown"),
+                "frequency_band": str(token.get("frequency_band") or "Unknown"),
+            }
         )
         block_token_indexes[block.id] += 1
-        token_count += 1
+
+    if rows:
+        db.execute(insert(TokenOccurrence), rows)
+    return len(rows)
+
+
+def _annotate_and_store_chunk(db, article: Article, chunk: list[ArticleBlock]) -> int:  # noqa: ANN001
+    annotation_text, _ = _build_annotation_text(chunk)
+    try:
+        tokens = nlp_client.annotate(annotation_text)
+    except Exception as exc:  # noqa: BLE001
+        if len(chunk) <= 1:
+            raise
+        midpoint = max(1, len(chunk) // 2)
+        logger.warning(
+            "article_processing_chunk_split article_id=%s blocks=%s-%s reason=%s",
+            article.id,
+            chunk[0].block_index,
+            chunk[-1].block_index,
+            exc,
+        )
+        return _annotate_and_store_chunk(db, article, chunk[:midpoint]) + _annotate_and_store_chunk(
+            db, article, chunk[midpoint:]
+        )
+
+    token_count = _add_chunk_tokens(db, article, chunk, tokens)
+    article.processed_block_count = chunk[-1].block_index + 1
+    db.commit()
     return token_count
 
 
@@ -201,10 +228,7 @@ def process_article(article_id: UUID) -> None:
         block_count = len(blocks)
         token_count = 0
         for chunk in _iter_annotation_chunks(blocks):
-            annotation_text, _ = _build_annotation_text(chunk)
-            token_count += _add_chunk_tokens(db, article, chunk, nlp_client.annotate(annotation_text))
-            article.processed_block_count = chunk[-1].block_index + 1
-            db.commit()
+            token_count += _annotate_and_store_chunk(db, article, chunk)
 
         if token_count == 0:
             raise RuntimeError("NLP annotation produced no tokens")
