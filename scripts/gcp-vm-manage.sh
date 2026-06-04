@@ -8,6 +8,8 @@ EXPECTED_GCLOUD_ACCOUNT="jidashuang8@gmail.com"
 EXPECTED_GCP_PROJECT="project-c2a014a9-0b24-44a9-abb"
 ZONE="${ZONE:-us-west1-b}"
 INSTANCE_NAME="${INSTANCE_NAME:-yomuyomu-vm}"
+SSH_USER="${SSH_USER:-jidashuang8}"
+SSH_TARGET="$SSH_USER@$INSTANCE_NAME"
 BRANCH="${BRANCH:-feat/positioning-validation-pivot}"
 
 if [ -z "$PROJECT_ID" ]; then
@@ -50,11 +52,11 @@ external_ip() {
 }
 
 remote_compose() {
-  gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "cd ~/yomuyomu && sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml $*"
+  gcloud compute ssh "$SSH_TARGET" --zone "$ZONE" --command "cd ~/yomuyomu && sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml $*"
 }
 
 wait_for_health() {
-  gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command '
+  gcloud compute ssh "$SSH_TARGET" --zone "$ZONE" --command '
     set -euo pipefail
     for attempt in {1..60}; do
       if curl -fsS http://localhost/api/health | grep -q '"status":"ok"' && curl -fsS http://localhost/nlp/health | grep -q '"status":"ok"' && curl -fsS http://localhost/ >/dev/null; then
@@ -100,7 +102,7 @@ case "$ACTION" in
     if [ "$STATUS" = "RUNNING" ]; then
       IP="$(external_ip)"
       echo "url=http://$IP"
-      gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "cd ~/yomuyomu && sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml ps" || true
+      gcloud compute ssh "$SSH_TARGET" --zone "$ZONE" --command "cd ~/yomuyomu && sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml ps" || true
     fi
     ;;
   verify)
@@ -137,7 +139,7 @@ case "$ACTION" in
     fi
     echo "verify=failed"
     gcloud compute firewall-rules describe yomuyomu-allow-http-https --format='yaml(name,network,allowed,targetTags,direction,disabled)' || true
-    gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command '
+    gcloud compute ssh "$SSH_TARGET" --zone "$ZONE" --command '
       set +e
       cd ~/yomuyomu || { echo "repo=missing"; exit 0; }
       echo "--- docker compose ps ---"
@@ -166,7 +168,11 @@ case "$ACTION" in
     echo "api=$API_BASE_URL"
     curl -fsS --max-time 10 "$API_BASE_URL/health" | grep -q '"status":"ok"'
     check_public_nlp_health "$NLP_BASE_URL"
-    python3 scripts/verify_article_imports.py --api-base-url "$API_BASE_URL" "${ACTION_ARGS[@]}"
+    if [ "${#ACTION_ARGS[@]}" -gt 0 ]; then
+      python3 scripts/verify_article_imports.py --api-base-url "$API_BASE_URL" "${ACTION_ARGS[@]}"
+    else
+      python3 scripts/verify_article_imports.py --api-base-url "$API_BASE_URL"
+    fi
     echo "--- recent article processing logs ---"
     if remote_compose logs --tail=300 api | grep -E "article_processing_(start|ready|failed)"; then
       echo "ok: article processing log markers found"
@@ -193,7 +199,11 @@ case "$ACTION" in
     echo "url=$WEB_BASE_URL"
     curl -fsS --max-time 10 "$API_BASE_URL/health" | grep -q '"status":"ok"'
     check_public_nlp_health "$NLP_BASE_URL"
-    node scripts/verify_web_epub_flow.mjs --web-base-url "$WEB_BASE_URL" --api-base-url "$API_BASE_URL" "${ACTION_ARGS[@]}"
+    if [ "${#ACTION_ARGS[@]}" -gt 0 ]; then
+      node scripts/verify_web_epub_flow.mjs --web-base-url "$WEB_BASE_URL" --api-base-url "$API_BASE_URL" "${ACTION_ARGS[@]}"
+    else
+      node scripts/verify_web_epub_flow.mjs --web-base-url "$WEB_BASE_URL" --api-base-url "$API_BASE_URL"
+    fi
     echo "--- recent article processing logs ---"
     if remote_compose logs --tail=300 api | grep -E "article_processing_(start|ready|failed)"; then
       echo "ok: article processing log markers found"
@@ -210,13 +220,13 @@ case "$ACTION" in
     gcloud compute instances stop "$INSTANCE_NAME" --zone "$ZONE"
     ;;
   ssh)
-    gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE"
+    gcloud compute ssh "$SSH_TARGET" --zone "$ZONE"
     ;;
   logs)
     remote_compose logs --tail=150
     ;;
   update)
-    gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "
+    gcloud compute ssh "$SSH_TARGET" --zone "$ZONE" --command "
       set -euo pipefail
       cd ~/yomuyomu
       git fetch origin
@@ -232,7 +242,7 @@ case "$ACTION" in
   backup-db)
     BACKUP_NAME="yomuyomu-$(date -u +%Y%m%dT%H%M%SZ).dump"
     REMOTE_BACKUP="~/yomuyomu-backups/$BACKUP_NAME"
-    gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "
+    gcloud compute ssh "$SSH_TARGET" --zone "$ZONE" --command "
       set -euo pipefail
       mkdir -p ~/yomuyomu-backups
       cd ~/yomuyomu
@@ -241,7 +251,7 @@ case "$ACTION" in
       set +a
       sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml exec -T postgres pg_dump -U \"\${POSTGRES_USER:-yomuyomu}\" -d \"\${POSTGRES_DB:-yomuyomu}\" -Fc > $REMOTE_BACKUP
     "
-    gcloud compute scp "$INSTANCE_NAME:$REMOTE_BACKUP" "./$BACKUP_NAME" --zone "$ZONE"
+    gcloud compute scp "$SSH_TARGET:$REMOTE_BACKUP" "./$BACKUP_NAME" --zone "$ZONE"
     echo "backup=./$BACKUP_NAME"
     ;;
   restore-db)
@@ -254,8 +264,8 @@ case "$ACTION" in
       echo "Backup file not found: $BACKUP_FILE" >&2
       exit 1
     fi
-    gcloud compute scp "$BACKUP_FILE" "$INSTANCE_NAME:/tmp/yomuyomu-restore.dump" --zone "$ZONE"
-    gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command '
+    gcloud compute scp "$BACKUP_FILE" "$SSH_TARGET:/tmp/yomuyomu-restore.dump" --zone "$ZONE"
+    gcloud compute ssh "$SSH_TARGET" --zone "$ZONE" --command '
       set -euo pipefail
       cd ~/yomuyomu
       set -a
