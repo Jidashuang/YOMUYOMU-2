@@ -14,6 +14,19 @@ def test_sqlite_session_is_configured_for_background_worker() -> None:
     assert db_session.connect_args == {"check_same_thread": False}
 
 
+def test_annotation_chunks_batch_large_epub_runs() -> None:
+    blocks = [
+        ArticleBlock(block_index=0, text="一" * 4000),
+        ArticleBlock(block_index=1, text="二" * 4000),
+        ArticleBlock(block_index=2, text="三" * 3998),
+        ArticleBlock(block_index=3, text="四"),
+    ]
+
+    chunks = article_processing._iter_annotation_chunks(blocks)
+
+    assert [[block.block_index for block in chunk] for chunk in chunks] == [[0, 1, 2], [3]]
+
+
 def test_article_processing_worker_flow(monkeypatch) -> None:
     engine = create_engine("sqlite+pysqlite:///:memory:")
     for table in [User.__table__, Article.__table__, ArticleBlock.__table__, TokenOccurrence.__table__, ProductEvent.__table__]:

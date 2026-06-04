@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 _recovery_started = False
 _recovery_lock = threading.Lock()
 MAX_TEXT_BLOCK_CHARS = 1200
-MAX_NLP_CHUNK_CHARS = 3000
+MAX_NLP_CHUNK_CHARS = 12000
 
 
 def normalize_content(raw_content: str) -> str:
