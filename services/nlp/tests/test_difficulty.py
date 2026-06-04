@@ -29,3 +29,8 @@ def test_packaged_difficulty_maps_cover_core_levels() -> None:
     assert frequency_map["武家"] == "outside-10k"
     assert frequency_map["百姓"] == "outside-10k"
     assert frequency_map["不可思議"] == "outside-10k"
+    assert frequency_map["名主"] == "outside-10k"
+    assert frequency_map["異風"] == "outside-10k"
+    assert frequency_map["手拭"] == "outside-10k"
+    assert frequency_map["頬かぶり"] == "outside-10k"
+    assert frequency_map["洒落者"] == "outside-10k"
