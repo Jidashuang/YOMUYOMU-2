@@ -242,6 +242,7 @@ def test_article_processing_supports_epub_source_type(monkeypatch) -> None:
         article = db.scalar(select(Article).where(Article.id == article_id))
         assert article is not None
         assert article.status == "ready"
+        assert article.annotation_status == "ready"
         assert article.processing_error is None
         assert article.normalized_content is not None
         assert "彼は来るはずだったのに" in article.normalized_content
@@ -309,6 +310,7 @@ def test_article_processing_marks_invalid_epub_zip_failed(monkeypatch) -> None:
         assert article is not None
         assert article.status == "failed"
         assert "Invalid EPUB zip archive" in (article.processing_error or "")
+        assert article.annotation_status == "pending"
         assert article.processed_block_count == 0
         assert article.total_block_count is None
 
@@ -349,6 +351,7 @@ def test_article_processing_marks_epub_without_readable_text_failed(monkeypatch)
         assert article is not None
         assert article.status == "failed"
         assert "EPUB text extraction produced empty content" in (article.processing_error or "")
+        assert article.annotation_status == "pending"
         assert article.processed_block_count == 0
 
 

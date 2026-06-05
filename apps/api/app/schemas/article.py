@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 SourceType = Literal["text", "epub"]
 ArticleStatus = Literal["processing", "ready", "failed"]
+AnnotationStatus = Literal["pending", "processing", "ready", "partial", "failed"]
 
 
 class ArticleCreateRequest(BaseModel):
@@ -41,6 +42,8 @@ class ArticleSummaryResponse(BaseModel):
     source_type: SourceType
     status: ArticleStatus
     processing_error: str | None = None
+    annotation_status: AnnotationStatus = "pending"
+    annotation_error: str | None = None
     created_at: datetime
     processed_block_count: int
     total_block_count: int | None = None

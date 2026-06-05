@@ -89,6 +89,13 @@ export function deleteArticle(articleId: string): Promise<{ ok: boolean }> {
   });
 }
 
+export function retryAnnotation(articleId: string): Promise<ArticleDetail> {
+  return requestJson<ArticleDetail>(`/articles/${articleId}/retry-annotation`, {
+    method: "POST",
+    auth: true,
+  });
+}
+
 export function lookupWord(input: LookupRequest): Promise<LookupResponse> {
   return requestJson<LookupResponse>("/lookup", withNlpBase({
     method: "POST",

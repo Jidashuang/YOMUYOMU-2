@@ -3,10 +3,11 @@
 import type { ArticleBlock, ArticleToken, HighlightResponse, JlptLevel } from "@yomuyomu/shared-types";
 import { useRef } from "react";
 
+import { shouldAnnotate, type AnnotationLevel } from "../../../../lib/reader-annotation";
 import { closestTokenElement, tokenHasHighlight } from "./reader-utils";
 import type { SelectedTokenState, SelectionMenuState } from "./types";
 
-export type AnnotationLevel = "N3" | "N2" | "N1";
+export type { AnnotationLevel };
 
 const jlptClassMap: Record<JlptLevel, string> = {
   N5: "text-zinc-900 dark:text-zinc-200",
@@ -17,19 +18,6 @@ const jlptClassMap: Record<JlptLevel, string> = {
   Unknown: "text-zinc-900 dark:text-zinc-200",
 };
 const neutralTokenClass = "text-zinc-900 dark:text-zinc-200";
-
-const jlptRank: Record<AnnotationLevel, number> = {
-  N3: 3,
-  N2: 2,
-  N1: 1,
-};
-
-function shouldAnnotate(tokenLevel: JlptLevel, annotationLevel: AnnotationLevel) {
-  if (tokenLevel !== "N3" && tokenLevel !== "N2" && tokenLevel !== "N1") {
-    return false;
-  }
-  return jlptRank[tokenLevel] <= jlptRank[annotationLevel];
-}
 
 function annotationClassForToken(token: ArticleToken, annotationLevel: AnnotationLevel) {
   if (shouldAnnotate(token.jlpt_level, annotationLevel)) {

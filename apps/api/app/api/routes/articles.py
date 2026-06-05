@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -26,7 +27,7 @@ from app.schemas.article import (
     ArticleTokenResponse,
     DeleteResponse,
 )
-from app.services.article_processing import normalize_content, process_article
+from app.services.article_processing import annotate_article, normalize_content, process_article
 from app.services.epub_parser import validate_epub_payload_size
 from app.services.product_analytics import EVENT_ARTICLE_CREATED, record_product_event
 
@@ -100,6 +101,8 @@ def _build_article_detail(
         source_type=article.source_type,
         status=article.status,
         processing_error=article.processing_error,
+        annotation_status=article.annotation_status,
+        annotation_error=article.annotation_error,
         created_at=article.created_at,
         processed_block_count=article.processed_block_count,
         total_block_count=article.total_block_count,
@@ -130,6 +133,8 @@ def create_article(
         raw_content=payload.raw_content,
         normalized_content=normalize_content(payload.raw_content) if payload.source_type == "text" else None,
         processing_error=None,
+        annotation_status="pending",
+        annotation_error=None,
         processed_block_count=0,
         total_block_count=None,
     )
@@ -145,7 +150,9 @@ def create_article(
     db.refresh(article)
 
     background_tasks.add_task(process_article, article.id)
-    detail = _build_article_detail(db, article)
+    # Return a lightweight payload — the client only needs the id to navigate to the reader.
+    # Echoing the multi-MB base64 raw_content here is what made EPUB import feel slow.
+    detail = _build_article_detail(db, article, block_limit=0)
     db.rollback()
     return detail
 
@@ -167,6 +174,8 @@ def list_articles(
             source_type=row.source_type,
             status=row.status,
             processing_error=row.processing_error,
+            annotation_status=row.annotation_status,
+            annotation_error=row.annotation_error,
             created_at=row.created_at,
             processed_block_count=row.processed_block_count,
             total_block_count=row.total_block_count,
@@ -194,6 +203,43 @@ def get_article(
     if article is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
     detail = _build_article_detail(db, article, block_offset=block_offset, block_limit=block_limit)
+    db.rollback()
+    return detail
+
+
+@router.post("/{article_id}/retry-annotation", response_model=ArticleDetailResponse)
+def retry_annotation(
+    article_id: str,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+) -> ArticleDetailResponse:
+    try:
+        article_uuid = UUID(article_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found") from exc
+
+    article = db.scalar(select(Article).where(Article.id == article_uuid, Article.user_id == current_user.id))
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
+    if article.status != "ready":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="文章正文尚未就绪，暂时无法重试标注。",
+        )
+
+    # Reset to a clean pending state and re-annotate from the start. annotate_article deletes
+    # existing tokens when resuming from 0, so this is idempotent and never duplicates rows.
+    article.annotation_status = "pending"
+    article.annotation_error = None
+    article.annotation_retry_count = 0
+    article.annotation_updated_at = datetime.now(timezone.utc)
+    article.processed_block_count = 0
+    db.commit()
+    db.refresh(article)
+
+    background_tasks.add_task(annotate_article, article.id)
+    detail = _build_article_detail(db, article)
     db.rollback()
     return detail
 

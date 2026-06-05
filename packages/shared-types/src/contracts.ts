@@ -1,5 +1,6 @@
 export type SourceType = "text" | "epub";
 export type ArticleStatus = "processing" | "ready" | "failed";
+export type AnnotationStatus = "pending" | "processing" | "ready" | "partial" | "failed";
 export type VocabStatus = "new" | "learning" | "known";
 export type VocabReviewResult = "fail" | "pass";
 
@@ -58,6 +59,8 @@ export interface ArticleSummary {
   source_type: SourceType;
   status: ArticleStatus;
   processing_error?: string | null;
+  annotation_status: AnnotationStatus;
+  annotation_error?: string | null;
   created_at: string;
   processed_block_count: number;
   total_block_count: number | null;

@@ -16,6 +16,10 @@ class Settings(BaseSettings):
     redis_url: str
     nlp_service_url: str = "http://localhost:8001"
 
+    # Path to a bundled JLPT wordlist used for degraded fallback annotation when the NLP
+    # service is unavailable. Empty → use the copy packaged at app/data/jlpt_map.csv.
+    fallback_jlpt_map_path: str | None = None
+
     jwt_secret: str
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7

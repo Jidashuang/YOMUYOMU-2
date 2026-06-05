@@ -192,12 +192,20 @@ def poll_article(client: JsonClient, base_url: str, token: str, article_id: str,
         snapshots.append(
             {
                 "status": payload.get("status"),
+                "annotation_status": payload.get("annotation_status"),
                 "blocks": len(payload.get("blocks") or []),
                 "processed_block_count": payload.get("processed_block_count"),
                 "total_block_count": payload.get("total_block_count"),
             }
         )
-        if payload.get("status") in {"ready", "failed"}:
+        # Text readability (status) and annotation health (annotation_status) settle
+        # independently now; wait until annotation has also reached a terminal state.
+        article_status = payload.get("status")
+        annotation_status = payload.get("annotation_status")
+        settled = article_status == "failed" or (
+            article_status == "ready" and annotation_status in {"ready", "partial", "failed"}
+        )
+        if settled:
             payload["_snapshots"] = snapshots
             return payload
         sleep(args.poll_interval)
@@ -212,6 +220,11 @@ def token_count(article: dict[str, Any]) -> int:
 def assert_ready_article(article: dict[str, Any], title: str) -> None:
     if article.get("status") != "ready":
         raise RuntimeError(f"{title} not ready: status={article.get('status')} error={article.get('processing_error')}")
+    annotation_status = article.get("annotation_status")
+    if annotation_status not in {"ready", "partial"}:
+        raise RuntimeError(
+            f"{title} annotation not healthy: annotation_status={annotation_status} error={article.get('annotation_error')}"
+        )
     blocks = article.get("blocks") or []
     if not blocks:
         raise RuntimeError(f"{title} has no blocks")
@@ -239,6 +252,8 @@ def summarize(article: dict[str, Any]) -> dict[str, Any]:
         "source_type": article.get("source_type"),
         "status": article.get("status"),
         "processing_error": article.get("processing_error"),
+        "annotation_status": article.get("annotation_status"),
+        "annotation_error": article.get("annotation_error"),
         "blocks": len(article.get("blocks") or []),
         "tokens": token_count(article),
         "processed_block_count": article.get("processed_block_count"),

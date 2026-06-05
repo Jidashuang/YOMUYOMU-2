@@ -7,28 +7,24 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { createArticle, deleteArticle, listArticles } from "../../lib/api";
+import { articleStatusLabel, articleStatusTone, type ArticleStatusTone } from "../../lib/article-status";
 import { PUBLIC_BOOKS, type PublicBook } from "../../lib/public-books";
 import { useRequireAuth } from "../../lib/use-require-auth";
 
 const MAX_EPUB_FILE_BYTES = 20 * 1024 * 1024;
 
+const STATUS_TONE_CLASSES: Record<ArticleStatusTone, string> = {
+  ready: "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200",
+  pending: "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200",
+  error: "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-200",
+};
+
 function statusLabel(article: ArticleSummary) {
-  if (article.status === "ready" && article.processing_error) return "正文可读";
-  if (article.status === "ready") return "已就绪";
-  if (article.status === "failed") return "处理失败";
-  if (article.total_block_count !== null) {
-    return `处理中 ${article.processed_block_count}/${article.total_block_count}`;
-  }
-  return "处理中";
+  return articleStatusLabel(article);
 }
 
 function statusTone(article: ArticleSummary) {
-  if (article.status === "ready" && article.processing_error) {
-    return "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200";
-  }
-  if (article.status === "ready") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200";
-  if (article.status === "failed") return "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-200";
-  return "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200";
+  return STATUS_TONE_CLASSES[articleStatusTone(article)];
 }
 
 // Target-user sample: a short slice from a light-novel-flavored passage that
@@ -65,7 +61,14 @@ export default function LibraryPage() {
       if (!rows) {
         return false;
       }
-      return rows.some((item) => item.status === "processing") ? 2000 : false;
+      return rows.some(
+        (item) =>
+          item.status === "processing" ||
+          item.annotation_status === "pending" ||
+          item.annotation_status === "processing"
+      )
+        ? 2000
+        : false;
     },
   });
 
@@ -213,10 +216,11 @@ export default function LibraryPage() {
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">{new Date(article.created_at).toLocaleString()}</p>
-                  {article.processing_error ? (
-                    <p className={`mt-1 text-xs ${article.status === "ready" ? "text-amber-700" : "text-red-600"}`}>
-                      {article.processing_error}
-                    </p>
+                  {article.status === "failed" && article.processing_error ? (
+                    <p className="mt-1 text-xs text-red-600">{article.processing_error}</p>
+                  ) : null}
+                  {article.status === "ready" && article.annotation_error ? (
+                    <p className="mt-1 text-xs text-amber-700">{article.annotation_error}</p>
                   ) : null}
                 </div>
 

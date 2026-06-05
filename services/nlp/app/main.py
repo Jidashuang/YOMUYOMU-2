@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 from functools import lru_cache
 from time import perf_counter
 from datetime import datetime, timezone
@@ -9,7 +10,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
-from app.difficulty import load_map
+from app.difficulty import evaluate_difficulty_map_health, load_map
 from app.dictionary_lookup import DictionaryLookup
 from app.schemas import (
     AnnotateRequest,
@@ -25,7 +26,27 @@ from app.tokenizer_service import TokenizerService
 settings = get_settings()
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title=settings.app_name, version=settings.app_version)
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Eagerly load + warm the difficulty maps so a misconfigured path (e.g. the *_sample.csv
+    # files) fails loudly at boot instead of silently degrading N1/N2/N3 coloring at the
+    # first /annotate call. @lru_cache means this also primes the cache for request handlers.
+    jlpt = get_jlpt_map()
+    frequency = get_frequency_map()
+    logger.info(
+        "nlp_difficulty_maps_loaded jlpt=%s frequency=%s jlpt_path=%s frequency_path=%s",
+        len(jlpt),
+        len(frequency),
+        settings.jlpt_map_path,
+        settings.frequency_map_path,
+    )
+    for warning in evaluate_difficulty_map_health(jlpt, frequency):
+        logger.error("nlp_difficulty_map_health %s", warning)
+    yield
+
+
+app = FastAPI(title=settings.app_name, version=settings.app_version, lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,

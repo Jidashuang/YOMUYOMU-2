@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from app.difficulty import load_map, resolve_difficulty
+import logging
+
+from app.difficulty import evaluate_difficulty_map_health, load_map, resolve_difficulty
 
 
 def test_resolves_difficulty_from_jlpt_and_frequency_maps() -> None:
@@ -34,3 +36,24 @@ def test_packaged_difficulty_maps_cover_core_levels() -> None:
     assert frequency_map["手拭"] == "outside-10k"
     assert frequency_map["頬かぶり"] == "outside-10k"
     assert frequency_map["洒落者"] == "outside-10k"
+
+
+def test_load_map_missing_file_returns_empty_and_warns(caplog) -> None:
+    with caplog.at_level(logging.WARNING):
+        result = load_map("services/nlp/data/does_not_exist.csv", "lemma", "jlpt_level")
+    assert result == {}
+    assert "not found" in caplog.text
+
+
+def test_difficulty_map_health_flags_small_maps() -> None:
+    warnings = evaluate_difficulty_map_health({"会う": "N5"}, {})
+    assert warnings
+    assert any("jlpt_map" in message for message in warnings)
+    assert any("frequency_map" in message for message in warnings)
+
+
+def test_difficulty_map_health_passes_for_full_maps() -> None:
+    jlpt_map = load_map("services/nlp/data/jlpt_map.csv", "lemma", "jlpt_level")
+    frequency_map = load_map("services/nlp/data/frequency_map.csv", "lemma", "frequency_band")
+
+    assert evaluate_difficulty_map_health(jlpt_map, frequency_map) == []

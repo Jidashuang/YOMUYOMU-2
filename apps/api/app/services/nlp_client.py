@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class NLPClient:
-    def __init__(self, base_url: str | None = None, timeout: float = 30.0, retries: int = 2):
+    def __init__(self, base_url: str | None = None, timeout: float = 10.0, retries: int = 1):
         settings = get_settings()
         self.base_url = (base_url or settings.nlp_service_url).rstrip("/")
         self.timeout = timeout

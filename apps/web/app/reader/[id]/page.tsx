@@ -15,10 +15,13 @@ import {
   listAiExplanations,
   listHighlights,
   lookupWordInReader,
+  retryAnnotation,
   saveVocabFromReader,
   updateHighlightNote,
   upsertReadingProgress,
 } from "../../../lib/api";
+import { pageHasAnnotatableToken, type AnnotationLevel } from "../../../lib/reader-annotation";
+import { computeReaderPaging } from "../../../lib/reader-paging";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { ExplanationPanel } from "./components/ExplanationPanel";
 import { HighlightMenu } from "./components/HighlightMenu";
@@ -44,7 +47,6 @@ import { sentenceContextFromBlock } from "./components/reader-utils";
 import { TokenPopup } from "./components/TokenPopup";
 import type { SelectedTokenState, SelectionMenuState } from "./components/types";
 
-type AnnotationLevel = "N3" | "N2" | "N1";
 type ReaderPagingMode = "scroll" | "swipe";
 
 const ANNOTATION_LEVELS: Array<{ value: AnnotationLevel; label: string; description: string }> = [
@@ -84,7 +86,14 @@ export default function ReaderPage() {
     queryKey: ["article", articleId, currentPageIndex],
     queryFn: () => getArticle(articleId, { blockOffset: pageBlockOffset, blockLimit: READER_BLOCKS_PER_PAGE }),
     enabled: hydrated && isAuthorized,
-    refetchInterval: (query) => (query.state.data?.status === "processing" ? 2000 : false),
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) {
+        return false;
+      }
+      const annotating = data.annotation_status === "pending" || data.annotation_status === "processing";
+      return data.status === "processing" || annotating ? 2000 : false;
+    },
   });
 
   const highlightsQuery = useQuery({
@@ -193,6 +202,13 @@ export default function ReaderPage() {
     },
   });
 
+  const retryAnnotationMutation = useMutation({
+    mutationFn: () => retryAnnotation(articleId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["article", articleId] });
+    },
+  });
+
   const updateNoteMutation = useMutation({
     mutationFn: ({ highlightId, note }: { highlightId: string; note: string }) =>
       updateHighlightNote(highlightId, { note }),
@@ -252,19 +268,27 @@ export default function ReaderPage() {
   const highlightCount = highlightsQuery.data?.length ?? 0;
   const articleBlocks = articleQuery.data?.blocks ?? [];
   const loadedBlockCount = pageBlockOffset + articleBlocks.length;
-  const totalKnownBlockCount = Math.max(
-    articleQuery.data?.total_block_count ?? 0,
-    articleQuery.data?.processed_block_count ?? 0,
-    loadedBlockCount
-  );
-  const visibleBlockCount = totalKnownBlockCount;
-  const totalReaderPages = Math.max(1, Math.ceil(visibleBlockCount / READER_BLOCKS_PER_PAGE));
-  const currentReaderPage = Math.min(currentPageIndex, totalReaderPages - 1);
+  const { visibleBlockCount, totalReaderPages, currentReaderPage } = computeReaderPaging({
+    totalBlockCount: articleQuery.data?.total_block_count ?? null,
+    processedBlockCount: articleQuery.data?.processed_block_count ?? 0,
+    loadedBlockCount,
+    currentPageIndex,
+    blocksPerPage: READER_BLOCKS_PER_PAGE,
+  });
   const currentPageBlocks = articleBlocks;
   const pageBlockStart = currentPageBlocks.length === 0 ? 0 : pageBlockOffset + 1;
   const pageBlockEnd = currentPageBlocks.length === 0 ? 0 : pageBlockOffset + currentPageBlocks.length;
   const hasReadableCurrentPage = articleBlocks.length > 0;
-  const hasReadableAnnotationError = Boolean(articleQuery.data?.processing_error && hasReadableCurrentPage);
+  const annotationStatus = articleQuery.data?.annotation_status;
+  const annotationError = articleQuery.data?.annotation_error;
+  const annotationProgressText = articleQuery.data ? processingProgressText(articleQuery.data) : "";
+  const annotationSettled = annotationStatus === "ready" || annotationStatus === "partial";
+  const showAnnotationInProgress =
+    (annotationStatus === "pending" || annotationStatus === "processing") && hasReadableCurrentPage;
+  const showAnnotationDegraded =
+    (annotationStatus === "partial" || annotationStatus === "failed") && hasReadableCurrentPage;
+  const showLevelEmptyHint =
+    hasReadableCurrentPage && annotationSettled && !pageHasAnnotatableToken(articleBlocks, annotationLevel);
   const showPageLoading = articleQuery.isFetching && !articleQuery.isLoading && !hasReadableCurrentPage;
 
   const goToReaderPage = (pageIndex: number) => {
@@ -283,6 +307,22 @@ export default function ReaderPage() {
       setCurrentPageIndex(totalReaderPages - 1);
     }
   }, [currentPageIndex, totalReaderPages]);
+
+  // Prefetch the next page so paging forward (and its annotations) feels instant.
+  useEffect(() => {
+    if (!articleQuery.data || currentReaderPage >= totalReaderPages - 1) {
+      return;
+    }
+    const nextIndex = currentReaderPage + 1;
+    queryClient.prefetchQuery({
+      queryKey: ["article", articleId, nextIndex],
+      queryFn: () =>
+        getArticle(articleId, {
+          blockOffset: nextIndex * READER_BLOCKS_PER_PAGE,
+          blockLimit: READER_BLOCKS_PER_PAGE,
+        }),
+    });
+  }, [articleId, articleQuery.data, currentReaderPage, totalReaderPages, queryClient]);
 
   useEffect(() => {
     if (pagingMode !== "swipe") {
@@ -488,15 +528,15 @@ export default function ReaderPage() {
         </div>
       </header>
 
-      {articleQuery.data?.status === "processing" ? (
+      {articleQuery.data?.status === "processing" || showAnnotationInProgress ? (
         <div
           data-testid="reader-processing-banner"
           className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm dark:border-amber-900/50 dark:bg-amber-950/20"
         >
           <p className="font-medium">
-            {articleQuery.data.source_type === "epub"
-              ? `整本 EPUB 难词标注正在继续：${processingProgressText(articleQuery.data)}`
-              : `正文难词标注正在继续：${processingProgressText(articleQuery.data)}`}
+            {articleQuery.data?.status === "processing"
+              ? "正在解析正文…"
+              : `难词标注处理中：${annotationProgressText}`}
           </p>
           <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
             {hasReadableCurrentPage ? "正文已可阅读，难词颜色会随着标注结果补上。" : "正在解析正文，请稍等，页面会自动刷新。"}
@@ -504,10 +544,26 @@ export default function ReaderPage() {
         </div>
       ) : null}
 
-      {hasReadableAnnotationError ? (
-        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
-          <p className="font-medium">正文可以阅读，难词标注暂时不可用</p>
-          <p className="mt-1 text-xs">{articleQuery.data?.processing_error}</p>
+      {showAnnotationDegraded ? (
+        <div
+          data-testid="reader-annotation-degraded"
+          className="flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100 sm:flex-row sm:items-center sm:justify-between"
+        >
+          <div>
+            <p className="font-medium">
+              {annotationStatus === "failed" ? "正文可阅读，难词标注失败" : "正文可阅读，部分难词标注失败"}
+            </p>
+            {annotationError ? <p className="mt-1 text-xs">{annotationError}</p> : null}
+          </div>
+          <button
+            type="button"
+            data-testid="reader-retry-annotation"
+            disabled={retryAnnotationMutation.isPending}
+            className="shrink-0 rounded-md border border-amber-400 px-3 py-1.5 text-sm font-medium text-amber-900 hover:bg-amber-100 disabled:opacity-60 dark:border-amber-700 dark:text-amber-100 dark:hover:bg-amber-900/40"
+            onClick={() => retryAnnotationMutation.mutate()}
+          >
+            {retryAnnotationMutation.isPending ? "重试中…" : "重试标注"}
+          </button>
         </div>
       ) : null}
 
@@ -592,6 +648,15 @@ export default function ReaderPage() {
               </button>
             </div>
           </div>
+
+          {showLevelEmptyHint ? (
+            <p
+              data-testid="reader-level-empty-hint"
+              className="rounded-md bg-stone-100 px-3 py-2 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+            >
+              当前页暂无 {annotationLevel} 词，可翻页或切换难度等级。
+            </p>
+          ) : null}
 
           <div
             data-testid="reader-page-frame"
