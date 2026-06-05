@@ -13,6 +13,7 @@ import { useRequireAuth } from "../../lib/use-require-auth";
 const MAX_EPUB_FILE_BYTES = 20 * 1024 * 1024;
 
 function statusLabel(article: ArticleSummary) {
+  if (article.status === "ready" && article.processing_error) return "正文可读";
   if (article.status === "ready") return "已就绪";
   if (article.status === "failed") return "处理失败";
   if (article.total_block_count !== null) {
@@ -21,9 +22,12 @@ function statusLabel(article: ArticleSummary) {
   return "处理中";
 }
 
-function statusTone(status: string) {
-  if (status === "ready") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200";
-  if (status === "failed") return "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-200";
+function statusTone(article: ArticleSummary) {
+  if (article.status === "ready" && article.processing_error) {
+    return "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200";
+  }
+  if (article.status === "ready") return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200";
+  if (article.status === "failed") return "bg-red-100 text-red-700 dark:bg-red-950/40 dark:text-red-200";
   return "bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-200";
 }
 
@@ -204,12 +208,16 @@ export default function LibraryPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="truncate font-medium">{article.title}</p>
-                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${statusTone(article.status)}`}>
+                    <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] ${statusTone(article)}`}>
                       {statusLabel(article)}
                     </span>
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">{new Date(article.created_at).toLocaleString()}</p>
-                  {article.processing_error ? <p className="mt-1 text-xs text-red-600">{article.processing_error}</p> : null}
+                  {article.processing_error ? (
+                    <p className={`mt-1 text-xs ${article.status === "ready" ? "text-amber-700" : "text-red-600"}`}>
+                      {article.processing_error}
+                    </p>
+                  ) : null}
                 </div>
 
                 <div className="flex items-center gap-2">

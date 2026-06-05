@@ -6,7 +6,7 @@ import threading
 from time import perf_counter
 from uuid import UUID
 
-from sqlalchemy import delete, insert, select
+from sqlalchemy import delete, func, insert, select
 
 from app.db.session import SessionLocal
 from app.models.entities import Article, ArticleBlock, TokenOccurrence
@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 _recovery_started = False
 _recovery_lock = threading.Lock()
 MAX_TEXT_BLOCK_CHARS = 1200
-MAX_NLP_CHUNK_CHARS = 12000
+MAX_NLP_CHUNK_CHARS = 8000
+TOKEN_INSERT_BATCH_SIZE = 500
 
 
 def normalize_content(raw_content: str) -> str:
@@ -72,6 +73,24 @@ def _safe_int(value: object, fallback: int = 0) -> int:
         return int(value)
     except (TypeError, ValueError):
         return fallback
+
+
+def _article_block_count(db, article_id: UUID) -> int:  # noqa: ANN001
+    return int(
+        db.scalar(select(func.count(ArticleBlock.id)).where(ArticleBlock.article_id == article_id))
+        or 0
+    )
+
+
+def _annotation_error_message(exc: Exception) -> str:
+    reason = str(exc)
+    if "NLP annotation produced no tokens" in reason:
+        return "NLP 标注暂时没有生成结果，正文已可阅读。"
+    if "OperationalError" in reason or "server closed" in reason or "consuming input failed" in reason:
+        return "NLP 标注写入暂时失败，正文已可阅读。"
+    if "NLP annotate failed" in reason:
+        return "NLP 标注暂时失败，正文已可阅读。"
+    return f"NLP 标注暂时失败，正文已可阅读：{reason[:180]}"
 
 
 def _iter_annotation_chunks(blocks: list[ArticleBlock]) -> list[list[ArticleBlock]]:
@@ -143,8 +162,8 @@ def _add_chunk_tokens(db, article: Article, blocks: list[ArticleBlock], tokens: 
         )
         block_token_indexes[block.id] += 1
 
-    if rows:
-        db.execute(insert(TokenOccurrence), rows)
+    for index in range(0, len(rows), TOKEN_INSERT_BATCH_SIZE):
+        db.execute(insert(TokenOccurrence), rows[index : index + TOKEN_INSERT_BATCH_SIZE])
     return len(rows)
 
 
@@ -221,6 +240,7 @@ def process_article(article_id: UUID) -> None:
         for block_index, block_text in enumerate(block_texts):
             db.add(ArticleBlock(article_id=article.id, block_index=block_index, text=block_text))
         db.commit()
+        logger.info("article_blocks_ready article_id=%s blocks=%s", article_id, len(block_texts))
 
         blocks = db.scalars(
             select(ArticleBlock).where(ArticleBlock.article_id == article.id).order_by(ArticleBlock.block_index.asc())
@@ -254,10 +274,43 @@ def process_article(article_id: UUID) -> None:
         )
     except Exception as exc:  # noqa: BLE001
         logger.exception("article_processing_exception article_id=%s error=%s", article_id, exc)
-        db.rollback()
+        try:
+            db.rollback()
+        except Exception:  # noqa: BLE001
+            db.close()
+            db = SessionLocal()
 
         article = db.scalar(select(Article).where(Article.id == article_id))
         if article:
+            block_count = _article_block_count(db, article.id)
+            if block_count > 0:
+                article.status = "ready"
+                article.processing_error = _annotation_error_message(exc)
+                article.processed_block_count = min(article.processed_block_count or 0, block_count)
+                article.total_block_count = article.total_block_count or block_count
+                record_product_event(
+                    db,
+                    user_id=article.user_id,
+                    article_id=article.id,
+                    event_name=EVENT_ARTICLE_PROCESSED,
+                    payload={
+                        "status": "ready",
+                        "annotation_status": "failed",
+                        "reason": article.processing_error,
+                        "block_count": block_count,
+                    },
+                )
+                db.commit()
+                logger.warning(
+                    "article_annotation_failed_readable article_id=%s blocks=%s processed=%s reason=%s latency_ms=%.2f",
+                    article_id,
+                    block_count,
+                    article.processed_block_count,
+                    article.processing_error,
+                    (perf_counter() - started_at) * 1000,
+                )
+                return
+
             article.status = "failed"
             article.processing_error = str(exc)[:3000]
             article.processed_block_count = article.processed_block_count or 0

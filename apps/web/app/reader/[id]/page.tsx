@@ -252,16 +252,20 @@ export default function ReaderPage() {
   const highlightCount = highlightsQuery.data?.length ?? 0;
   const articleBlocks = articleQuery.data?.blocks ?? [];
   const loadedBlockCount = pageBlockOffset + articleBlocks.length;
-  const totalKnownBlockCount = articleQuery.data?.total_block_count ?? Math.max(articleQuery.data?.processed_block_count ?? 0, loadedBlockCount);
-  const visibleBlockCount =
-    articleQuery.data?.status === "processing"
-      ? Math.max(articleQuery.data.processed_block_count, loadedBlockCount)
-      : totalKnownBlockCount;
+  const totalKnownBlockCount = Math.max(
+    articleQuery.data?.total_block_count ?? 0,
+    articleQuery.data?.processed_block_count ?? 0,
+    loadedBlockCount
+  );
+  const visibleBlockCount = totalKnownBlockCount;
   const totalReaderPages = Math.max(1, Math.ceil(visibleBlockCount / READER_BLOCKS_PER_PAGE));
   const currentReaderPage = Math.min(currentPageIndex, totalReaderPages - 1);
   const currentPageBlocks = articleBlocks;
   const pageBlockStart = currentPageBlocks.length === 0 ? 0 : pageBlockOffset + 1;
   const pageBlockEnd = currentPageBlocks.length === 0 ? 0 : pageBlockOffset + currentPageBlocks.length;
+  const hasReadableCurrentPage = articleBlocks.length > 0;
+  const hasReadableAnnotationError = Boolean(articleQuery.data?.processing_error && hasReadableCurrentPage);
+  const showPageLoading = articleQuery.isFetching && !articleQuery.isLoading && !hasReadableCurrentPage;
 
   const goToReaderPage = (pageIndex: number) => {
     setSelectedToken(null);
@@ -491,16 +495,23 @@ export default function ReaderPage() {
         >
           <p className="font-medium">
             {articleQuery.data.source_type === "epub"
-              ? `整本 EPUB 正在继续处理：${processingProgressText(articleQuery.data)}`
-              : `正文正在处理：${processingProgressText(articleQuery.data)}`}
+              ? `整本 EPUB 难词标注正在继续：${processingProgressText(articleQuery.data)}`
+              : `正文难词标注正在继续：${processingProgressText(articleQuery.data)}`}
           </p>
           <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
-            {articleBlocks.length > 0 ? "已处理出来的正文会先显示，页面会自动刷新后续内容。" : "还没有生成可读正文，请稍等，页面会自动刷新。"}
+            {hasReadableCurrentPage ? "正文已可阅读，难词颜色会随着标注结果补上。" : "正在解析正文，请稍等，页面会自动刷新。"}
           </p>
         </div>
       ) : null}
 
-      {articleQuery.data?.status === "failed" ? (
+      {hasReadableAnnotationError ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/20 dark:text-amber-100">
+          <p className="font-medium">正文可以阅读，难词标注暂时不可用</p>
+          <p className="mt-1 text-xs">{articleQuery.data?.processing_error}</p>
+        </div>
+      ) : null}
+
+      {articleQuery.data?.status === "failed" && !hasReadableCurrentPage ? (
         <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/20 dark:text-red-200">
           <p className="font-medium">这篇文章处理失败</p>
           {articleQuery.data.processing_error ? (
@@ -517,7 +528,7 @@ export default function ReaderPage() {
       />
 
       {articleQuery.isLoading ? <p>加载文章中...</p> : null}
-      {articleQuery.isFetching && !articleQuery.isLoading ? <p className="text-sm text-zinc-500">加载本页中...</p> : null}
+      {showPageLoading ? <p className="text-sm text-zinc-500">加载本页中...</p> : null}
       {articleQuery.isError ? <p className="text-red-600">{(articleQuery.error as Error).message}</p> : null}
 
       {articleBlocks.length > 0 ? (

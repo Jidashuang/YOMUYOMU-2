@@ -145,7 +145,9 @@ def create_article(
     db.refresh(article)
 
     background_tasks.add_task(process_article, article.id)
-    return _build_article_detail(db, article)
+    detail = _build_article_detail(db, article)
+    db.rollback()
+    return detail
 
 
 @router.get("", response_model=list[ArticleSummaryResponse])
@@ -158,7 +160,7 @@ def list_articles(
         .where(Article.user_id == current_user.id)
         .order_by(Article.created_at.desc())
     ).all()
-    return [
+    articles = [
         ArticleSummaryResponse(
             id=row.id,
             title=row.title,
@@ -171,6 +173,8 @@ def list_articles(
         )
         for row in rows
     ]
+    db.rollback()
+    return articles
 
 
 @router.get("/{article_id}", response_model=ArticleDetailResponse)
@@ -189,7 +193,9 @@ def get_article(
     article = db.scalar(select(Article).where(Article.id == article_uuid, Article.user_id == current_user.id))
     if article is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
-    return _build_article_detail(db, article, block_offset=block_offset, block_limit=block_limit)
+    detail = _build_article_detail(db, article, block_offset=block_offset, block_limit=block_limit)
+    db.rollback()
+    return detail
 
 
 @router.delete("/{article_id}", response_model=DeleteResponse)
