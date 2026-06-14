@@ -135,7 +135,7 @@ export function TokenPopup({
           <a className="underline hover:text-zinc-600" href={firstEntry.source_url} target="_blank" rel="noreferrer">
             {firstEntry.source_name}
           </a>
-          （CC BY-SA 4.0）
+          {firstEntry.source_name === "中文维基词典" ? "（CC BY-SA 4.0）" : null}
         </p>
       ) : null}
 

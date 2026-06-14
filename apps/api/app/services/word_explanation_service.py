@@ -88,6 +88,19 @@ def _contains_kana(value: str) -> bool:
     return bool(re.search(r"[ぁ-んァ-ン]", value))
 
 
+def _pos_label(pos: list[str]) -> str:
+    labels = {
+        "noun": "名词",
+        "verb": "动词",
+        "adjective": "形容词",
+        "adverb": "副词",
+        "particle": "助词",
+        "auxiliary": "助动词",
+        "expression": "固定表达",
+    }
+    return "、".join(labels.get(item.lower(), item) for item in pos) if pos else "词语"
+
+
 def _parse_wiktionary_html(html: str, *, pos: list[str], context: str, page_title: str) -> WordExplanation | None:
     parser = JapaneseSectionParser()
     parser.feed(html)
@@ -127,7 +140,7 @@ def _parse_wiktionary_html(html: str, *, pos: list[str], context: str, page_titl
         break
 
     meaning_zh = "；".join(definitions)
-    pos_label = "、".join(pos) if pos else "词语"
+    pos_label = _pos_label(pos)
     return WordExplanation(
         meaning_zh=meaning_zh,
         usage_zh=f"在原句中作为「{pos_label}」使用，含义为：{definitions[0]}",
@@ -192,6 +205,7 @@ def _fetch_wiktionary(
                     "prop": "text",
                     "format": "json",
                     "formatversion": "2",
+                    "variant": "zh-hans",
                 },
                 headers={"User-Agent": "Yomuyomu/0.1 dictionary lookup"},
                 timeout=min(timeout_seconds, 5.0),
@@ -209,6 +223,112 @@ def _fetch_wiktionary(
         except Exception:  # noqa: BLE001
             continue
     return None
+
+
+def _translate_jmdict_meaning(
+    *,
+    meanings: list[str],
+    primary_meaning: str,
+    timeout_seconds: float,
+) -> str:
+    source_text = "; ".join(dict.fromkeys(meanings[:4])) or primary_meaning
+    try:
+        response = httpx.post(
+            "https://translate.wmcloud.org/api/translate",
+            json={
+                "format": "text",
+                "content": source_text,
+                "source_language": "en",
+                "target_language": "zh",
+            },
+            headers={"User-Agent": "Yomuyomu/0.1 dictionary lookup"},
+            timeout=min(timeout_seconds, 8.0),
+        )
+        response.raise_for_status()
+        return _clean_text(response.json().get("translation", ""))
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _fetch_tatoeba_example(
+    *,
+    surface: str,
+    lemma: str,
+    timeout_seconds: float,
+) -> tuple[str, str, str] | None:
+    for term in dict.fromkeys([surface, lemma]):
+        try:
+            response = httpx.get(
+                "https://api.tatoeba.org/v1/sentences",
+                params={
+                    "lang": "jpn",
+                    "q": term,
+                    "trans:lang": "cmn",
+                    "trans:is_direct": "yes",
+                    "sort": "relevance",
+                    "limit": 5,
+                },
+                headers={"User-Agent": "Yomuyomu/0.1 dictionary lookup"},
+                timeout=min(timeout_seconds, 6.0),
+            )
+            response.raise_for_status()
+            for sentence in response.json().get("data", []):
+                text = _clean_text(sentence.get("text", ""))
+                if term not in text:
+                    continue
+                translations = [
+                    item
+                    for item in sentence.get("translations", [])
+                    if item.get("lang") == "cmn" and not item.get("is_unapproved", False)
+                ]
+                if not translations:
+                    continue
+                translation = next(
+                    (item for item in translations if item.get("script") == "Hans"),
+                    translations[0],
+                )
+                sentence_id = sentence.get("id")
+                return (
+                    text,
+                    _clean_text(translation.get("text", "")),
+                    f"https://tatoeba.org/zh-cn/sentences/show/{sentence_id}",
+                )
+        except Exception:  # noqa: BLE001
+            continue
+    return None
+
+
+def _translated_fallback(
+    *,
+    surface: str,
+    lemma: str,
+    pos: list[str],
+    meanings: list[str],
+    primary_meaning: str,
+    timeout_seconds: float,
+) -> WordExplanation | None:
+    meaning_zh = _translate_jmdict_meaning(
+        meanings=meanings,
+        primary_meaning=primary_meaning,
+        timeout_seconds=timeout_seconds,
+    )
+    if not meaning_zh:
+        return None
+
+    example = _fetch_tatoeba_example(
+        surface=surface,
+        lemma=lemma,
+        timeout_seconds=timeout_seconds,
+    )
+    example_ja, example_zh, example_url = example or ("", "", "")
+    return WordExplanation(
+        meaning_zh=meaning_zh,
+        usage_zh=f"在当前原句中以「{_pos_label(pos)}」形式出现，可理解为：{meaning_zh}",
+        example_ja=example_ja,
+        example_zh=example_zh,
+        source_name="JMdict + Wikimedia MinT" + ("；例句 Tatoeba（CC BY 2.0 FR）" if example else ""),
+        source_url=example_url or "https://translate.wmcloud.org/",
+    )
 
 
 def generate_word_explanation(
@@ -238,9 +358,6 @@ def generate_word_explanation(
     if explanation:
         _save_cached(key, explanation)
         return explanation
-
-    if settings.llm_provider.strip().lower() != "openai" or not settings.openai_api_key:
-        return None
 
     request_payload = {
         "model": settings.openai_model,
@@ -274,19 +391,33 @@ def generate_word_explanation(
         ],
     }
 
-    try:
-        response = httpx.post(
-            "https://api.openai.com/v1/chat/completions",
-            headers={
-                "Authorization": f"Bearer {settings.openai_api_key}",
-                "Content-Type": "application/json",
-            },
-            json=request_payload,
-            timeout=min(settings.openai_timeout_seconds, 12.0),
+    explanation = None
+    if settings.llm_provider.strip().lower() == "openai" and settings.openai_api_key:
+        try:
+            response = httpx.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {settings.openai_api_key}",
+                    "Content-Type": "application/json",
+                },
+                json=request_payload,
+                timeout=min(settings.openai_timeout_seconds, 12.0),
+            )
+            response.raise_for_status()
+            explanation = _parse_content(response.json())
+        except Exception:  # noqa: BLE001
+            explanation = None
+
+    if explanation is None:
+        explanation = _translated_fallback(
+            surface=surface,
+            lemma=lemma,
+            pos=pos,
+            meanings=meanings,
+            primary_meaning=primary_meaning,
+            timeout_seconds=settings.openai_timeout_seconds,
         )
-        response.raise_for_status()
-        explanation = _parse_content(response.json())
-    except Exception:  # noqa: BLE001
+    if explanation is None:
         return None
 
     _save_cached(key, explanation)

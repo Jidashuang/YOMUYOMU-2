@@ -110,3 +110,60 @@ def test_generate_word_explanation_uses_real_provider_result(monkeypatch) -> Non
     assert result is not None
     assert result.meaning_zh == "中心；核心"
     assert result.example_ja != "父は海を中心に写真を撮っていた。"
+
+
+def test_generate_word_explanation_translates_jmdict_and_uses_tatoeba(monkeypatch) -> None:
+    settings = SimpleNamespace(
+        llm_provider="openai",
+        openai_api_key=None,
+        openai_timeout_seconds=30,
+        ai_cache_ttl_seconds=60,
+    )
+    monkeypatch.setattr(word_explanation_service, "get_settings", lambda: settings)
+    monkeypatch.setattr(word_explanation_service, "_load_cached", lambda key: None)
+    monkeypatch.setattr(word_explanation_service, "_save_cached", lambda key, value: None)
+
+    def fake_get(url, *args, **kwargs):
+        if "wiktionary" in url:
+            return FakeResponse({"parse": {"text": "<h2>汉语</h2>"}})
+        return FakeResponse(
+            {
+                "data": [
+                    {
+                        "id": 123,
+                        "text": "写真撮影禁止。",
+                        "translations": [
+                            {
+                                "text": "禁止拍照。",
+                                "lang": "cmn",
+                                "script": "Hans",
+                                "is_unapproved": False,
+                            }
+                        ],
+                    }
+                ]
+            }
+        )
+
+    monkeypatch.setattr(word_explanation_service.httpx, "get", fake_get)
+    monkeypatch.setattr(
+        word_explanation_service.httpx,
+        "post",
+        lambda *args, **kwargs: FakeResponse({"translation": "摄影"}),
+    )
+
+    result = word_explanation_service.generate_word_explanation(
+        surface="撮影",
+        lemma="撮影",
+        reading="さつえい",
+        pos=["noun"],
+        meanings=["photography", "taking a picture"],
+        primary_meaning="photography",
+        context="父は写真を撮影した。",
+    )
+
+    assert result is not None
+    assert result.meaning_zh == "摄影"
+    assert result.example_ja == "写真撮影禁止。"
+    assert result.example_zh == "禁止拍照。"
+    assert "Tatoeba" in result.source_name
