@@ -194,6 +194,48 @@ def test_lookup_inflected_form_hits_base_lemma(tmp_path) -> None:
     assert entries[0].primary_meaning == "to eat"
 
 
+def test_lookup_opens_readonly_sqlite(tmp_path) -> None:
+    db_dir = tmp_path / "readonly"
+    db_dir.mkdir()
+    db_path = db_dir / "jmdict.sqlite"
+
+    with sqlite3.connect(db_path) as conn:
+        _create_entries_table(conn)
+        conn.execute(
+            """
+            INSERT INTO entries (
+                surface, lemma, reading, pos_json, meanings_json, primary_meaning,
+                sense_index, is_common, entry_priority, jlpt_level, frequency_band
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "中心",
+                "中心",
+                "ちゅうしん",
+                json.dumps(["noun"], ensure_ascii=False),
+                json.dumps(["center"], ensure_ascii=False),
+                "center",
+                1,
+                1,
+                1,
+                "N4",
+                "top-5k",
+            ),
+        )
+        conn.commit()
+
+    db_path.chmod(0o444)
+    db_dir.chmod(0o555)
+    try:
+        lookup = _make_lookup(db_path, tmp_path)
+        entries = lookup.lookup(surface="中心", lemma="中心", reading="ちゅうしん")
+    finally:
+        db_dir.chmod(0o755)
+        db_path.chmod(0o644)
+
+    assert entries[0].primary_meaning == "center"
+
+
 def test_lookup_contract_contains_popup_fields(tmp_path) -> None:
     db_path = tmp_path / "jmdict.sqlite"
 

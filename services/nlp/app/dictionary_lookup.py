@@ -67,6 +67,9 @@ class DictionaryLookup:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Sudachi tokenizer unavailable for lookup normalization: %s", exc)
 
+    def _connect_db(self) -> sqlite3.Connection:
+        return sqlite3.connect(f"{self.jmdict_db_path.resolve().as_uri()}?mode=ro", uri=True)
+
     def _load_seed(self) -> dict[str, dict]:
         try:
             with self.seed_path.open("r", encoding="utf-8") as file:
@@ -82,7 +85,7 @@ class DictionaryLookup:
             return self._db_columns
 
         try:
-            with sqlite3.connect(self.jmdict_db_path) as conn:
+            with self._connect_db() as conn:
                 rows = conn.execute("PRAGMA table_info(entries)").fetchall()
             self._db_columns = {str(row[1]) for row in rows}
             return self._db_columns
@@ -211,7 +214,7 @@ class DictionaryLookup:
             LIMIT ?
         """
 
-        with sqlite3.connect(self.jmdict_db_path) as conn:
+        with self._connect_db() as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(query, (candidate.value, limit)).fetchall()
         return rows
