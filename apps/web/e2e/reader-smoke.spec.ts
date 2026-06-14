@@ -56,6 +56,12 @@ test("reader critical flow smoke", async ({ page }) => {
         pos: ["verb"],
         meanings: ["to come", "to arrive"],
         primary_meaning: "to come",
+        meaning_zh: "来；到来",
+        usage_zh: "在句中表示某人来到当前场景。",
+        example_ja: "友達が家に来る。",
+        example_zh: "朋友来家里。",
+        example_sentence: "",
+        usage_note: "",
         jlpt_level: "N5",
         frequency_band: "top-1k",
       },
@@ -341,7 +347,10 @@ test("reader critical flow smoke", async ({ page }) => {
 
   await page.locator("[data-testid='reader-token']", { hasText: "来る" }).first().click();
   await expect(page.getByTestId("token-popup")).toBeVisible();
-  await expect(page.getByTestId("token-popup-meaning")).toContainText("to come");
+  await expect(page.getByTestId("token-popup-meaning")).toContainText("来；到来");
+  await expect(page.getByTestId("token-popup")).toContainText("例句：友達が家に来る。");
+  await expect(page.getByTestId("token-popup")).toContainText("译文：朋友来家里。");
+  await expect(page.getByTestId("token-popup")).toContainText("在句中表示某人来到当前场景。");
   await expect(page.getByTestId("token-popup")).toContainText("加入生词本");
   await page
     .getByTestId("token-popup-add-vocab")

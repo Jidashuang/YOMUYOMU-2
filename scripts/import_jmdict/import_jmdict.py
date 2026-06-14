@@ -60,9 +60,7 @@ def _extract_usage_note(sense: ET.Element, fallback_pos: list[str]) -> str:
     parts = [item.strip() for item in (infos + misc) if item.strip()]
     if parts:
         return " / ".join(dict.fromkeys(parts))
-    if fallback_pos:
-        return f"Common {'/'.join(fallback_pos)} usage."
-    return "General usage."
+    return ""
 
 
 def _extract_example_sentence(sense: ET.Element) -> str:

@@ -189,7 +189,11 @@ export default function ReaderPage() {
         lemma: selectedToken.token.lemma || selectedToken.token.surface,
         reading: selectedToken.token.reading,
         pos: selectedToken.token.pos,
-        meaning_snapshot: { meanings: hasDictionaryMatch(firstEntry) ? firstEntry?.meanings ?? [] : [] },
+        meaning_snapshot: {
+          meanings: hasDictionaryMatch(firstEntry)
+            ? [...(firstEntry?.meaning_zh ? [firstEntry.meaning_zh] : []), ...(firstEntry?.meanings ?? [])]
+            : [],
+        },
         jlpt_level: hasDictionaryMatch(firstEntry) ? firstEntry?.jlpt_level ?? selectedToken.token.jlpt_level : selectedToken.token.jlpt_level,
         frequency_band: hasDictionaryMatch(firstEntry)
           ? firstEntry?.frequency_band ?? selectedToken.token.frequency_band

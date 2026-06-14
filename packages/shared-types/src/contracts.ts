@@ -317,6 +317,10 @@ export interface LookupEntry {
   pos: string[];
   meanings: string[];
   primary_meaning: string;
+  meaning_zh?: string | null;
+  usage_zh?: string | null;
+  example_ja?: string | null;
+  example_zh?: string | null;
   example_sentence: string;
   usage_note: string;
   jlpt_level: JlptLevel;

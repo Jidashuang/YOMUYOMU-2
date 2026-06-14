@@ -58,6 +58,10 @@ class ReaderLookupEntry(BaseModel):
     pos: list[str]
     meanings: list[str]
     primary_meaning: str
+    meaning_zh: str | None = None
+    usage_zh: str | None = None
+    example_ja: str | None = None
+    example_zh: str | None = None
     example_sentence: str = ""
     usage_note: str = ""
     jlpt_level: str = "Unknown"

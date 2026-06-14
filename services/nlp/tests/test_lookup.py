@@ -77,7 +77,7 @@ def test_lookup_uses_jmdict_sqlite(tmp_path) -> None:
     assert entries[0].primary_meaning == "to come"
     assert entries[0].meanings[0] == "to come"
     assert entries[0].example_sentence == ""
-    assert entries[0].usage_note
+    assert entries[0].usage_note == ""
 
 
 def test_lookup_no_seed_fallback_by_default(tmp_path) -> None:

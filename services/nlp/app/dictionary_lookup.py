@@ -249,8 +249,8 @@ class DictionaryLookup:
         example_sentence = str(row["example_sentence"] or "").strip() if "example_sentence" in row.keys() else ""
         usage_note = str(row["usage_note"] or "").strip() if "usage_note" in row.keys() else ""
 
-        if not usage_note:
-            usage_note = f"Common {pos[0]} usage."
+        if usage_note == "General usage." or (usage_note.startswith("Common ") and usage_note.endswith(" usage.")):
+            usage_note = ""
 
         jlpt_level = str(row["jlpt_level"] or self.jlpt_map.get(lemma, "Unknown"))
         frequency_band = str(row["frequency_band"] or self.frequency_map.get(lemma, "Unknown"))

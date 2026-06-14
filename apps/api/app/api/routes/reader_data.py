@@ -26,6 +26,7 @@ from app.services.product_analytics import (
     record_product_event,
 )
 from app.services.vocab_service import create_vocab_item
+from app.services.word_explanation_service import generate_word_explanation
 
 router = APIRouter(prefix="/reader-data", tags=["reader-data"])
 
@@ -238,6 +239,19 @@ def lookup_from_reader(
         context=payload.context or "",
     )
     parsed_entries = [ReaderLookupEntry.model_validate(item) for item in entries]
+    if parsed_entries and parsed_entries[0].primary_meaning != "No dictionary match":
+        first_entry = parsed_entries[0]
+        explanation = generate_word_explanation(
+            surface=payload.surface,
+            lemma=first_entry.lemma,
+            reading=first_entry.reading,
+            pos=first_entry.pos,
+            meanings=first_entry.meanings,
+            primary_meaning=first_entry.primary_meaning,
+            context=payload.context or "",
+        )
+        if explanation:
+            parsed_entries[0] = first_entry.model_copy(update=explanation.model_dump())
 
     record_product_event(
         db,
