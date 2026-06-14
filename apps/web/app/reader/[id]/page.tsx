@@ -754,36 +754,58 @@ export default function ReaderPage() {
             </div>
           </div>
 
-          {showLevelEmptyHint ? (
-            <p
-              data-testid="reader-level-empty-hint"
-              className="rounded-md bg-stone-100 px-3 py-2 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
-            >
-              当前页暂无 {annotationLevel} 词，可翻页或切换难度等级。
-            </p>
-          ) : null}
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,28rem)] xl:items-start">
+            <div className="min-w-0 space-y-3 xl:order-none">
+              {showLevelEmptyHint ? (
+                <p
+                  data-testid="reader-level-empty-hint"
+                  className="rounded-md bg-stone-100 px-3 py-2 text-xs text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"
+                >
+                  当前页暂无 {annotationLevel} 词，可翻页或切换难度等级。
+                </p>
+              ) : null}
 
-          <div
-            data-testid="reader-page-frame"
-            className={
-              pagingMode === "scroll"
-                ? "max-h-[calc(100vh-14rem)] overflow-y-auto overscroll-contain rounded-2xl"
-                : "rounded-2xl touch-pan-y"
-            }
-            onTouchStart={handleReaderTouchStart}
-            onTouchEnd={handleReaderTouchEnd}
-          >
-            <ReaderArticleView
-              blocks={currentPageBlocks}
-              annotationLevel={annotationLevel}
-              furiganaVisible={furiganaVisible}
-              highlightsByBlock={highlightsByBlock}
-              onTokenSelect={handleTokenSelect}
-              onSelectionChange={(menu, error) => {
-                setSelectionMenu(menu);
-                setSelectionError(error);
-              }}
-            />
+              <div
+                data-testid="reader-page-frame"
+                className={
+                  pagingMode === "scroll"
+                    ? "max-h-[calc(100vh-14rem)] overflow-y-auto overscroll-contain rounded-2xl"
+                    : "rounded-2xl touch-pan-y"
+                }
+                onTouchStart={handleReaderTouchStart}
+                onTouchEnd={handleReaderTouchEnd}
+              >
+                <ReaderArticleView
+                  blocks={currentPageBlocks}
+                  annotationLevel={annotationLevel}
+                  furiganaVisible={furiganaVisible}
+                  highlightsByBlock={highlightsByBlock}
+                  onTokenSelect={handleTokenSelect}
+                  onSelectionChange={(menu, error) => {
+                    setSelectionMenu(menu);
+                    setSelectionError(error);
+                  }}
+                />
+              </div>
+            </div>
+
+            <aside
+              data-testid="reader-ai-companion"
+              className="order-first min-w-0 xl:order-none xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto"
+            >
+              <ExplanationPanel
+                latestAi={latestAi}
+                history={aiHistoryQuery.data}
+                isGenerating={createAiMutation.isPending}
+                addingSuggestedKey={addingSuggestedKey}
+                savedKeys={savedVocabKeys}
+                onAddSuggestedVocab={(item) => {
+                  const key = `${item.lemma}:${item.pos}`;
+                  setAddingSuggestedKey(key);
+                  saveSuggestedVocabMutation.mutate(item);
+                }}
+              />
+            </aside>
           </div>
         </div>
       ) : null}
@@ -796,17 +818,6 @@ export default function ReaderPage() {
 
       {selectionError ? <p className="text-xs text-red-600">{selectionError}</p> : null}
 
-      <ExplanationPanel
-        latestAi={latestAi}
-        history={aiHistoryQuery.data}
-        addingSuggestedKey={addingSuggestedKey}
-        savedKeys={savedVocabKeys}
-        onAddSuggestedVocab={(item) => {
-          const key = `${item.lemma}:${item.pos}`;
-          setAddingSuggestedKey(key);
-          saveSuggestedVocabMutation.mutate(item);
-        }}
-      />
         </div>
       </ReaderShell>
 

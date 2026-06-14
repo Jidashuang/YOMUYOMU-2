@@ -9,7 +9,9 @@ import type {
 interface ExplanationPanelProps {
   latestAi: AIExplanationResponse | null;
   history?: AIExplanationHistoryItem[];
+  isGenerating?: boolean;
   addingSuggestedKey?: string | null;
+  savedKeys?: Set<string>;
   onAddSuggestedVocab?: (item: SuggestedVocabItem) => void;
 }
 
@@ -37,7 +39,9 @@ function ProviderFooter({
 export function ExplanationPanel({
   latestAi,
   history,
+  isGenerating = false,
   addingSuggestedKey,
+  savedKeys,
   onAddSuggestedVocab,
 }: ExplanationPanelProps) {
   return (
@@ -49,6 +53,15 @@ export function ExplanationPanel({
         <h3 className="font-semibold">AI 中文解释</h3>
         <p className="text-xs text-zinc-500">划句之后让 AI 用中文给你拆开这句</p>
       </div>
+
+      {isGenerating ? (
+        <div
+          data-testid="explanation-loading"
+          className="mt-3 rounded-md border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800 dark:border-brand-800 dark:bg-brand-950/30 dark:text-brand-100"
+        >
+          正在生成中文解释…
+        </div>
+      ) : null}
 
       {latestAi ? (
         <div className="mt-3 rounded-md border border-brand-200 p-3 dark:border-brand-700">
@@ -135,6 +148,7 @@ export function ExplanationPanel({
             <div className="mt-2 space-y-2 text-xs" data-testid="suggested-vocab-list">
               {(latestAi.suggested_vocab ?? []).map((item) => {
                 const key = `${item.lemma}:${item.pos}`;
+                const alreadySaved = savedKeys?.has(key) ?? false;
                 return (
                   <div
                     key={key}
@@ -148,10 +162,10 @@ export function ExplanationPanel({
                     <button
                       type="button"
                       className="rounded bg-brand-500 px-2 py-1 text-white hover:bg-brand-700 disabled:opacity-60"
-                      disabled={!onAddSuggestedVocab || addingSuggestedKey === key}
+                      disabled={!onAddSuggestedVocab || addingSuggestedKey === key || alreadySaved}
                       onClick={() => onAddSuggestedVocab?.(item)}
                     >
-                      {addingSuggestedKey === key ? "加入中..." : "加入生词本"}
+                      {alreadySaved ? "已收录" : addingSuggestedKey === key ? "加入中..." : "加入生词本"}
                     </button>
                   </div>
                 );
@@ -168,11 +182,11 @@ export function ExplanationPanel({
             errorType={latestAi.error_type}
           />
         </div>
-      ) : (
+      ) : !isGenerating ? (
         <p className="mt-3 text-sm text-zinc-500">
           还没有解释。在正文里划一句话，再点「让 AI 解释这句」。
         </p>
-      )}
+      ) : null}
 
       {history && history.length > 0 ? (
         <div className="mt-4 space-y-2">
