@@ -52,11 +52,13 @@ export function TokenPopup({
     : hasDictionaryMatch
       ? firstEntry?.primary_meaning
       : "词典暂未收录，先看原文标注信息";
-  const exampleSentence = firstEntry?.example_sentence || selectedToken.blockText;
+  const dictionaryExample = hasDictionaryMatch ? firstEntry?.example_sentence?.trim() || "" : "";
+  const exampleSentence = dictionaryExample || selectedToken.blockText;
+  const exampleLabel = dictionaryExample ? "例：" : "原文句：";
   const usageNote =
     hasDictionaryMatch && firstEntry?.usage_note && firstEntry.usage_note !== "No usage note available."
       ? firstEntry.usage_note
-      : `在当前句中作为「${partsOfSpeech}」出现，可结合例句和上下文理解。`;
+      : `在当前句中作为「${partsOfSpeech}」出现，可结合原文上下文理解。`;
 
   return (
     <div
@@ -108,7 +110,7 @@ export function TokenPopup({
 
       {exampleSentence ? (
         <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-300">
-          <span className="font-medium">例：</span>
+          <span className="font-medium">{exampleLabel}</span>
           {exampleSentence}
         </p>
       ) : null}

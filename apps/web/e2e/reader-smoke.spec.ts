@@ -352,6 +352,7 @@ test("reader critical flow smoke", async ({ page }) => {
   await expect(page.getByTestId("token-popup")).toBeVisible();
   await expect(page.getByTestId("token-popup")).not.toContainText("No dictionary match");
   await expect(page.getByTestId("token-popup-meaning")).toContainText("词典暂未收录");
+  await expect(page.getByTestId("token-popup")).toContainText("原文句：");
   await expect(page.getByTestId("token-popup")).toContainText("在当前句中作为");
 
   await page.evaluate(() => {

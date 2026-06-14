@@ -246,10 +246,6 @@ class DictionaryLookup:
         example_sentence = str(row["example_sentence"] or "").strip() if "example_sentence" in row.keys() else ""
         usage_note = str(row["usage_note"] or "").strip() if "usage_note" in row.keys() else ""
 
-        if not example_sentence:
-            example_sentence = self._context_example_sentence(context=context, surface=surface, lemma=lemma)
-        if not example_sentence:
-            example_sentence = f"{surface or lemma}。"
         if not usage_note:
             usage_note = f"Common {pos[0]} usage."
 

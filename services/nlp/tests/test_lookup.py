@@ -76,7 +76,7 @@ def test_lookup_uses_jmdict_sqlite(tmp_path) -> None:
     assert len(entries) >= 1
     assert entries[0].primary_meaning == "to come"
     assert entries[0].meanings[0] == "to come"
-    assert entries[0].example_sentence
+    assert entries[0].example_sentence == ""
     assert entries[0].usage_note
 
 
