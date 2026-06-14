@@ -197,6 +197,9 @@ def test_gemini_provider_uses_google_cloud_chat_completions(monkeypatch) -> None
 
 
 def test_no_key_provider_explains_shirahane_sentence(monkeypatch) -> None:
+    monkeypatch.setenv("LLM_PROVIDER", "openai")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    get_settings.cache_clear()
     monkeypatch.setattr(
         ai_provider.httpx,
         "post",
@@ -240,3 +243,4 @@ def test_no_key_provider_explains_shirahane_sentence(monkeypatch) -> None:
     assert any(item["surface"] == "こと" and "形式名词" in item["meaning"] for item in response["token_breakdown"])
     assert meta["provider"] == "wikimedia-mint-rules"
     assert meta["suggested_vocab"][0]["meaning"] == "荣誉"
+    get_settings.cache_clear()
