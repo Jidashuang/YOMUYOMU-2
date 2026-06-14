@@ -116,6 +116,7 @@ def test_generate_word_explanation_translates_jmdict_and_uses_tatoeba(monkeypatc
     settings = SimpleNamespace(
         llm_provider="openai",
         openai_api_key=None,
+        openai_model="gpt-test",
         openai_timeout_seconds=30,
         ai_cache_ttl_seconds=60,
     )
