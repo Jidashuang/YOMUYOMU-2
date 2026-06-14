@@ -169,7 +169,67 @@ def _deterministic_grammar_points(sentence: str) -> list[dict[str, str]]:
     return points
 
 
+def _normalize_explanation_shape(response_json: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(response_json)
+
+    grammar_points = []
+    for item in normalized.get("grammar_points", []):
+        if not isinstance(item, dict):
+            continue
+        updated = dict(item)
+        if not updated.get("name") and updated.get("grammar"):
+            updated["name"] = updated["grammar"]
+        grammar_points.append(updated)
+    normalized["grammar_points"] = grammar_points
+
+    token_breakdown = []
+    for item in normalized.get("token_breakdown", []):
+        if not isinstance(item, dict):
+            continue
+        updated = dict(item)
+        if not updated.get("meaning") and updated.get("explanation"):
+            updated["meaning"] = updated["explanation"]
+        if not updated.get("role") and updated.get("pos"):
+            updated["role"] = updated["pos"]
+        token_breakdown.append(updated)
+    normalized["token_breakdown"] = token_breakdown
+
+    omissions = normalized.get("omissions", [])
+    if isinstance(omissions, str):
+        normalized["omissions"] = [omissions] if omissions.strip() else []
+
+    examples = []
+    for item in normalized.get("examples", []):
+        if not isinstance(item, dict):
+            continue
+        updated = dict(item)
+        if not updated.get("jp") and updated.get("japanese"):
+            updated["jp"] = updated["japanese"]
+        if not updated.get("zh") and updated.get("translation"):
+            updated["zh"] = updated["translation"]
+        examples.append(updated)
+    normalized["examples"] = examples
+
+    alternatives = []
+    for item in normalized.get("alternative_expressions", []):
+        if not isinstance(item, dict):
+            continue
+        updated = dict(item)
+        explanation = str(updated.get("explanation", "")).strip()
+        if not updated.get("jp") and updated.get("expression"):
+            updated["jp"] = updated["expression"]
+        if not updated.get("zh"):
+            updated["zh"] = str(updated.get("translation") or explanation or updated.get("note") or "").strip()
+        if not updated.get("note"):
+            updated["note"] = explanation or updated["zh"]
+        alternatives.append(updated)
+    normalized["alternative_expressions"] = alternatives
+
+    return normalized
+
+
 def _stabilize_explanation_json(response_json: dict[str, Any], sentence: str) -> dict[str, Any]:
+    response_json = _normalize_explanation_shape(response_json)
     validated = AIExplanationJSON.model_validate(response_json).model_dump()
 
     existing = {
