@@ -241,13 +241,20 @@ def lookup_from_reader(
     parsed_entries = [ReaderLookupEntry.model_validate(item) for item in entries]
     if parsed_entries and parsed_entries[0].primary_meaning != "No dictionary match":
         first_entry = parsed_entries[0]
+        relevant_entries = [
+            entry for entry in parsed_entries if entry.lemma in {first_entry.lemma, payload.surface}
+        ]
+        relevant_entries.sort(key=lambda entry: entry.lemma != payload.surface)
+        explanation_meanings = list(
+            dict.fromkeys(meaning for entry in relevant_entries for meaning in entry.meanings)
+        )
         explanation = generate_word_explanation(
             surface=payload.surface,
             lemma=first_entry.lemma,
             reading=first_entry.reading,
             pos=first_entry.pos,
-            meanings=first_entry.meanings,
-            primary_meaning=first_entry.primary_meaning,
+            meanings=explanation_meanings or first_entry.meanings,
+            primary_meaning=explanation_meanings[0] if explanation_meanings else first_entry.primary_meaning,
             context=payload.context or "",
         )
         if explanation:

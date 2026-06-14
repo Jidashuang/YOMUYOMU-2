@@ -131,6 +131,18 @@ def test_generate_word_explanation_translates_jmdict_and_uses_tatoeba(monkeypatc
             {
                 "data": [
                     {
+                        "id": 122,
+                        "text": "好きな撮影者は誰ですか。",
+                        "translations": [
+                            {
+                                "text": "谁是你最喜欢的摄影师？",
+                                "lang": "cmn",
+                                "script": "Hans",
+                                "is_unapproved": False,
+                            }
+                        ],
+                    },
+                    {
                         "id": 123,
                         "text": "写真撮影禁止。",
                         "translations": [
@@ -150,7 +162,7 @@ def test_generate_word_explanation_translates_jmdict_and_uses_tatoeba(monkeypatc
     monkeypatch.setattr(
         word_explanation_service.httpx,
         "post",
-        lambda *args, **kwargs: FakeResponse({"translation": "摄影"}),
+        lambda *args, **kwargs: FakeResponse({"translation": "摄影; 摄影; 拍摄; 拍摄"}),
     )
 
     result = word_explanation_service.generate_word_explanation(
@@ -164,7 +176,8 @@ def test_generate_word_explanation_translates_jmdict_and_uses_tatoeba(monkeypatc
     )
 
     assert result is not None
-    assert result.meaning_zh == "摄影"
+    assert result.meaning_zh == "摄影；拍摄"
+    assert result.usage_zh.startswith("在当前原句中以「名词」形式出现")
     assert result.example_ja == "写真撮影禁止。"
     assert result.example_zh == "禁止拍照。"
     assert "Tatoeba" in result.source_name

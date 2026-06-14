@@ -89,16 +89,26 @@ def _contains_kana(value: str) -> bool:
 
 
 def _pos_label(pos: list[str]) -> str:
-    labels = {
-        "noun": "名词",
-        "verb": "动词",
-        "adjective": "形容词",
-        "adverb": "副词",
-        "particle": "助词",
-        "auxiliary": "助动词",
-        "expression": "固定表达",
-    }
-    return "、".join(labels.get(item.lower(), item) for item in pos) if pos else "词语"
+    labels: list[str] = []
+    categories = (
+        ("noun", "名词"),
+        ("verb", "动词"),
+        ("adjectiv", "形容词"),
+        ("adverb", "副词"),
+        ("particle", "助词"),
+        ("auxiliary", "助动词"),
+        ("expression", "固定表达"),
+    )
+    for item in pos:
+        matched = False
+        for keyword, label in categories:
+            if keyword in item.lower():
+                matched = True
+                if label not in labels:
+                    labels.append(label)
+        if not matched and item not in labels:
+            labels.append(item)
+    return "、".join(labels) if labels else "词语"
 
 
 def _parse_wiktionary_html(html: str, *, pos: list[str], context: str, page_title: str) -> WordExplanation | None:
@@ -245,7 +255,10 @@ def _translate_jmdict_meaning(
             timeout=min(timeout_seconds, 8.0),
         )
         response.raise_for_status()
-        return _clean_text(response.json().get("translation", ""))
+        translated = _clean_text(response.json().get("translation", ""))
+        parts = list(dict.fromkeys(part.strip() for part in re.split(r"[;；]", translated) if part.strip()))
+        concise = [part for part in parts if not any(part != other and part in other for other in parts)]
+        return "；".join(concise or parts)
     except Exception:  # noqa: BLE001
         return ""
 
@@ -272,6 +285,7 @@ def _fetch_tatoeba_example(
                 timeout=min(timeout_seconds, 6.0),
             )
             response.raise_for_status()
+            candidates: list[tuple[int, str, str, str]] = []
             for sentence in response.json().get("data", []):
                 text = _clean_text(sentence.get("text", ""))
                 if term not in text:
@@ -288,11 +302,17 @@ def _fetch_tatoeba_example(
                     translations[0],
                 )
                 sentence_id = sentence.get("id")
-                return (
-                    text,
-                    _clean_text(translation.get("text", "")),
-                    f"https://tatoeba.org/zh-cn/sentences/show/{sentence_id}",
+                candidates.append(
+                    (
+                        len(text),
+                        text,
+                        _clean_text(translation.get("text", "")),
+                        f"https://tatoeba.org/zh-cn/sentences/show/{sentence_id}",
+                    )
                 )
+            if candidates:
+                _, text, translation, source_url = min(candidates)
+                return text, translation, source_url
         except Exception:  # noqa: BLE001
             continue
     return None
