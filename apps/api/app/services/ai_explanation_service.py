@@ -209,6 +209,8 @@ def _normalize_explanation_shape(response_json: dict[str, Any]) -> dict[str, Any
             updated["jp"] = updated["japanese"]
         if not updated.get("zh") and updated.get("translation"):
             updated["zh"] = updated["translation"]
+        if not updated.get("zh") and updated.get("chinese"):
+            updated["zh"] = updated["chinese"]
         examples.append(updated)
     normalized["examples"] = examples
 

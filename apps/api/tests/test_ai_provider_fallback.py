@@ -36,7 +36,7 @@ class AliasShapeProvider:
                 ],
                 "omissions": "没有明显省略。",
                 "nuance": "语气正式。",
-                "examples": [{"japanese": "彼に白羽の矢が立った。", "translation": "他被选中了。"}],
+                "examples": [{"japanese": "彼に白羽の矢が立った。", "chinese": "他被选中了。"}],
                 "why_this_expression": "比普通的「選ばれる」更有仪式感。",
                 "alternative_expressions": [{"expression": "私が選ばれた。", "explanation": "更直接。"}],
             },
