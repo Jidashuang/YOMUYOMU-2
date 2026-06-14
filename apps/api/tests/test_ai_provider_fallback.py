@@ -24,7 +24,7 @@ class AliasShapeProvider:
             response_json={
                 "translation_zh": "很荣幸，我被选中了。",
                 "literal_translation": "白羽之箭落到了我身上。",
-                "grammar_points": [{"grammar": "白羽の矢が立つ", "explanation": "表示被选中。"}],
+                "grammar_points": [{"structure": "白羽の矢が立つ", "explanation": "表示被选中。"}],
                 "token_breakdown": [
                     {
                         "surface": "白羽",

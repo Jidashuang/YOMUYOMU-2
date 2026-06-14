@@ -179,6 +179,8 @@ def _normalize_explanation_shape(response_json: dict[str, Any]) -> dict[str, Any
         updated = dict(item)
         if not updated.get("name") and updated.get("grammar"):
             updated["name"] = updated["grammar"]
+        if not updated.get("name") and updated.get("structure"):
+            updated["name"] = updated["structure"]
         grammar_points.append(updated)
     normalized["grammar_points"] = grammar_points
 
