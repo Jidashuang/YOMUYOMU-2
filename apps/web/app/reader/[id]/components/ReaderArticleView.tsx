@@ -3,10 +3,16 @@
 import type { ArticleBlock, ArticleToken, HighlightResponse, JlptLevel } from "@yomuyomu/shared-types";
 import { useRef } from "react";
 
+import {
+  katakanaToHiragana,
+  shouldAnnotate,
+  shouldShowFurigana,
+  type AnnotationLevel,
+} from "../../../../lib/reader-annotation";
 import { closestTokenElement, tokenHasHighlight } from "./reader-utils";
 import type { SelectedTokenState, SelectionMenuState } from "./types";
 
-export type AnnotationLevel = "N3" | "N2" | "N1";
+export type { AnnotationLevel };
 
 const jlptClassMap: Record<JlptLevel, string> = {
   N5: "text-zinc-900 dark:text-zinc-200",
@@ -18,19 +24,6 @@ const jlptClassMap: Record<JlptLevel, string> = {
 };
 const neutralTokenClass = "text-zinc-900 dark:text-zinc-200";
 
-const jlptRank: Record<AnnotationLevel, number> = {
-  N3: 3,
-  N2: 2,
-  N1: 1,
-};
-
-function shouldAnnotate(tokenLevel: JlptLevel, annotationLevel: AnnotationLevel) {
-  if (tokenLevel !== "N3" && tokenLevel !== "N2" && tokenLevel !== "N1") {
-    return false;
-  }
-  return jlptRank[tokenLevel] <= jlptRank[annotationLevel];
-}
-
 function annotationClassForToken(token: ArticleToken, annotationLevel: AnnotationLevel) {
   if (shouldAnnotate(token.jlpt_level, annotationLevel)) {
     return jlptClassMap[token.jlpt_level];
@@ -41,6 +34,7 @@ function annotationClassForToken(token: ArticleToken, annotationLevel: Annotatio
 interface ReaderArticleViewProps {
   blocks: ArticleBlock[];
   annotationLevel: AnnotationLevel;
+  furiganaVisible: boolean;
   highlightsByBlock: Map<string, HighlightResponse[]>;
   onTokenSelect: (value: SelectedTokenState) => void;
   onSelectionChange: (menu: SelectionMenuState | null, error: string | null) => void;
@@ -49,6 +43,7 @@ interface ReaderArticleViewProps {
 export function ReaderArticleView({
   blocks,
   annotationLevel,
+  furiganaVisible,
   highlightsByBlock,
   onTokenSelect,
   onSelectionChange,
@@ -158,7 +153,14 @@ export function ReaderArticleView({
                         });
                       }}
                     >
-                      {token.surface}
+                      {furiganaVisible && shouldShowFurigana(token) ? (
+                        <ruby>
+                          {token.surface}
+                          <rt>{katakanaToHiragana(token.reading)}</rt>
+                        </ruby>
+                      ) : (
+                        token.surface
+                      )}
                     </span>
                   );
                 })

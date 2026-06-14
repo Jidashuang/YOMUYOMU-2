@@ -3,6 +3,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 
+import type { AnnotationLevel } from "./reader-annotation";
+
 type ThemeMode = "light" | "dark";
 export type ReaderTheme = "white" | "paper" | "dark";
 
@@ -18,11 +20,17 @@ interface UISettings {
   measure: number;
   /** Reading-surface theme used by the reader workbench. */
   readerTheme: ReaderTheme;
+  /** Selected difficulty-annotation level; persisted so it survives reloads. */
+  annotationLevel: AnnotationLevel;
+  /** Whether inline furigana (ruby) is shown over kanji tokens. */
+  furiganaVisible: boolean;
   setTheme: (theme: ThemeMode) => void;
   setFontSize: (fontSize: number) => void;
   setLineHeight: (lineHeight: number) => void;
   setMeasure: (measure: number) => void;
   setReaderTheme: (readerTheme: ReaderTheme) => void;
+  setAnnotationLevel: (annotationLevel: AnnotationLevel) => void;
+  setFuriganaVisible: (furiganaVisible: boolean) => void;
 }
 
 export const useUISettingsStore = create<UISettings>()(
@@ -33,11 +41,15 @@ export const useUISettingsStore = create<UISettings>()(
       lineHeight: 1.9,
       measure: 42,
       readerTheme: "paper",
+      annotationLevel: "N3",
+      furiganaVisible: false,
       setTheme: (theme) => set({ theme }),
       setFontSize: (fontSize) => set({ fontSize }),
       setLineHeight: (lineHeight) => set({ lineHeight }),
       setMeasure: (measure) => set({ measure }),
       setReaderTheme: (readerTheme) => set({ readerTheme }),
+      setAnnotationLevel: (annotationLevel) => set({ annotationLevel }),
+      setFuriganaVisible: (furiganaVisible) => set({ furiganaVisible }),
     }),
     { name: "yomuyomu-ui-settings" }
   )
