@@ -1,5 +1,8 @@
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import type { NextConfig } from "next";
+
+const configDir = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@yomuyomu/shared-types", "@yomuyomu/ui"],
@@ -7,7 +10,7 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   turbopack: {
-    root: path.resolve(__dirname, "../../"), // 指向 monorepo 根 yomuyomu/
+    root: path.resolve(configDir, "../../"), // 指向 monorepo 根 yomuyomu/
   },
 };
 
