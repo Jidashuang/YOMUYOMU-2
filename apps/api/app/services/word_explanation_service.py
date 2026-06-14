@@ -283,7 +283,6 @@ def _fetch_tatoeba_example(
                     "lang": "jpn",
                     "q": query,
                     "trans:lang": "cmn",
-                    "trans:is_direct": "yes",
                     "sort": "relevance",
                     "limit": 5,
                 },
