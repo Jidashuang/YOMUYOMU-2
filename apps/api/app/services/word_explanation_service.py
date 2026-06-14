@@ -90,23 +90,26 @@ def _contains_kana(value: str) -> bool:
 
 def _pos_label(pos: list[str]) -> str:
     labels: list[str] = []
-    categories = (
-        ("noun", "名词"),
-        ("verb", "动词"),
-        ("adjectiv", "形容词"),
-        ("adverb", "副词"),
-        ("particle", "助词"),
-        ("auxiliary", "助动词"),
-        ("expression", "固定表达"),
-    )
     for item in pos:
-        matched = False
-        for keyword, label in categories:
-            if keyword in item.lower():
-                matched = True
-                if label not in labels:
-                    labels.append(label)
-        if not matched and item not in labels:
+        lower = item.lower()
+        label = ""
+        if lower.startswith("noun") or lower.startswith("nouns which"):
+            label = "名词"
+        elif "verb" in lower and "adverb" not in lower:
+            label = "动词"
+        elif "adjectiv" in lower:
+            label = "形容词"
+        elif lower.startswith("adverb"):
+            label = "副词"
+        elif lower == "particle":
+            label = "助词"
+        elif lower.startswith("auxiliary"):
+            label = "助动词"
+        elif "expression" in lower:
+            label = "固定表达"
+        if label and label not in labels:
+            labels.append(label)
+        elif not label and item not in labels:
             labels.append(item)
     return "、".join(labels) if labels else "词语"
 
@@ -269,13 +272,16 @@ def _fetch_tatoeba_example(
     lemma: str,
     timeout_seconds: float,
 ) -> tuple[str, str, str] | None:
-    for term in dict.fromkeys([surface, lemma]):
+    terms = list(dict.fromkeys([surface, lemma]))
+    queries = list(dict.fromkeys([f"={term}" for term in terms] + terms))
+    for query in queries:
+        term = query.removeprefix("=")
         try:
             response = httpx.get(
                 "https://api.tatoeba.org/v1/sentences",
                 params={
                     "lang": "jpn",
-                    "q": term,
+                    "q": query,
                     "trans:lang": "cmn",
                     "trans:is_direct": "yes",
                     "sort": "relevance",

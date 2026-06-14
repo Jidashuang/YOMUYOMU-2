@@ -127,6 +127,7 @@ def test_generate_word_explanation_translates_jmdict_and_uses_tatoeba(monkeypatc
     def fake_get(url, *args, **kwargs):
         if "wiktionary" in url:
             return FakeResponse({"parse": {"text": "<h2>汉语</h2>"}})
+        assert kwargs["params"]["q"] == "=撮影"
         return FakeResponse(
             {
                 "data": [
