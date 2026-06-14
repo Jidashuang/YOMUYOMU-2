@@ -68,7 +68,7 @@ class DictionaryLookup:
                 logger.warning("Sudachi tokenizer unavailable for lookup normalization: %s", exc)
 
     def _connect_db(self) -> sqlite3.Connection:
-        return sqlite3.connect(f"{self.jmdict_db_path.resolve().as_uri()}?mode=ro", uri=True)
+        return sqlite3.connect(f"{self.jmdict_db_path.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
 
     def _load_seed(self) -> dict[str, dict]:
         try:
