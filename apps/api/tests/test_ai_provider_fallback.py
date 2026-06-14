@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from app.core.config import get_settings
 from app.services import ai_explanation_service
+from app.services import ai_provider
 from app.services.ai_provider import AIProviderError
 
 
@@ -13,8 +14,17 @@ class BrokenProvider:
         raise AIProviderError("parse_error", "malformed json", retryable=False)
 
 
-def test_ai_provider_parse_failure_falls_back_to_mock(monkeypatch) -> None:
+def test_ai_provider_parse_failure_falls_back_to_no_key_explanation(monkeypatch) -> None:
     monkeypatch.setattr(ai_explanation_service, "get_ai_provider", lambda settings: BrokenProvider())
+    monkeypatch.setattr(
+        ai_provider.httpx,
+        "post",
+        lambda *args, **kwargs: type(
+            "FakeResponse",
+            (),
+            {"raise_for_status": lambda self: None, "json": lambda self: {"translation": "他"}},
+        )(),
+    )
 
     response, meta = ai_explanation_service.generate_explanation(
         sentence="彼は来るはずだったのに",
@@ -51,10 +61,19 @@ def test_ai_provider_parse_failure_falls_back_to_mock(monkeypatch) -> None:
     assert meta["error_type"] == "parse_error"
 
 
-def test_openai_provider_disabled_falls_back_to_mock(monkeypatch) -> None:
+def test_openai_provider_disabled_uses_no_key_explanation(monkeypatch) -> None:
     monkeypatch.setenv("LLM_PROVIDER", "openai")
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     get_settings.cache_clear()
+    monkeypatch.setattr(
+        ai_provider.httpx,
+        "post",
+        lambda *args, **kwargs: type(
+            "FakeResponse",
+            (),
+            {"raise_for_status": lambda self: None, "json": lambda self: {"translation": "他本来应该来的。"}},
+        )(),
+    )
 
     response, meta = ai_explanation_service.generate_explanation(
         sentence="彼は来るはずだったのに",
@@ -66,8 +85,56 @@ def test_openai_provider_disabled_falls_back_to_mock(monkeypatch) -> None:
     )
 
     assert response["translation_zh"]
+    assert "示例译文" not in response["translation_zh"]
     assert "why_this_expression" in response
     assert "alternative_expressions" in response
-    assert meta["provider"] == "mock"
+    assert meta["provider"] == "wikimedia-mint-rules"
+    assert meta["model"] == "rules-mint-v1"
     assert meta["error_type"] is None
     get_settings.cache_clear()
+
+
+def test_no_key_provider_explains_shirahane_sentence(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ai_provider.httpx,
+        "post",
+        lambda *args, **kwargs: type(
+            "FakeResponse",
+            (),
+            {"raise_for_status": lambda self: None, "json": lambda self: {"translation": "荣誉"}},
+        )(),
+    )
+
+    response, meta = ai_explanation_service.generate_explanation(
+        sentence="光栄なことに、写真家というジャンルの中から、私に白羽の矢が立った。",
+        previous_sentence="",
+        next_sentence="",
+        user_level="N3",
+        tokenized_result=[
+            {"surface": "光栄", "lemma": "光栄", "reading": "コウエイ", "pos": "名詞", "start": 0, "end": 2},
+            {"surface": "な", "lemma": "だ", "reading": "ナ", "pos": "助動詞", "start": 2, "end": 3},
+            {"surface": "こと", "lemma": "こと", "reading": "コト", "pos": "名詞", "start": 3, "end": 5},
+            {"surface": "に", "lemma": "に", "reading": "ニ", "pos": "助詞", "start": 5, "end": 6},
+            {"surface": "写真家", "lemma": "写真家", "reading": "シャシンカ", "pos": "名詞", "start": 7, "end": 10},
+            {"surface": "という", "lemma": "いう", "reading": "イウ", "pos": "動詞", "start": 10, "end": 13},
+            {"surface": "中", "lemma": "中", "reading": "ナカ", "pos": "名詞", "start": 18, "end": 19},
+            {"surface": "白羽", "lemma": "白羽", "reading": "シラハ", "pos": "名詞", "start": 25, "end": 27},
+        ],
+        dictionary_hints=[
+            {
+                "lemma": "光栄",
+                "reading": "こうえい",
+                "pos": ["noun"],
+                "meanings": ["honour", "honor", "glory"],
+                "primary_meaning": "honour",
+                "jlpt_level": "Unknown",
+                "frequency_band": "outside-10k",
+            }
+        ],
+    )
+
+    assert response["translation_zh"] == "很荣幸，在摄影家这个类别中，我被选中了。"
+    assert any(point["name"] == "白羽の矢が立つ" for point in response["grammar_points"])
+    assert any(item["surface"] == "こと" and "形式名词" in item["meaning"] for item in response["token_breakdown"])
+    assert meta["provider"] == "wikimedia-mint-rules"
+    assert meta["suggested_vocab"][0]["meaning"] == "荣誉"
