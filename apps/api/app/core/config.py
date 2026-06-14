@@ -20,11 +20,14 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expire_minutes: int = 60 * 24 * 7
 
-    llm_provider: str = "openai"
+    llm_provider: str = "gemini"
     openai_api_key: str | None = None
     openai_model: str = "gpt-4.1-mini"
     openai_timeout_seconds: float = 30.0
     openai_max_retries: int = 2
+    gemini_project_id: str | None = None
+    gemini_location: str = "global"
+    gemini_model: str = "google/gemini-3.5-flash"
     ai_prompt_version: str = "v2"
     ai_cache_ttl_seconds: int = 86400
 

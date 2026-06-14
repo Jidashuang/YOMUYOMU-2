@@ -3,7 +3,7 @@ from __future__ import annotations
 from app.core.config import get_settings
 from app.services import ai_explanation_service
 from app.services import ai_provider
-from app.services.ai_provider import AIProviderError
+from app.services.ai_provider import AIProviderError, GeminiProvider
 
 
 class BrokenProvider:
@@ -92,6 +92,52 @@ def test_openai_provider_disabled_uses_no_key_explanation(monkeypatch) -> None:
     assert meta["model"] == "rules-mint-v1"
     assert meta["error_type"] is None
     get_settings.cache_clear()
+
+
+def test_gemini_provider_uses_google_cloud_chat_completions(monkeypatch) -> None:
+    seen = {}
+
+    def fake_post(url, headers, json, timeout):
+        seen["url"] = url
+        seen["headers"] = headers
+        seen["json"] = json
+        seen["timeout"] = timeout
+        return type(
+            "FakeResponse",
+            (),
+            {
+                "raise_for_status": lambda self: None,
+                "json": lambda self: {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"translation_zh":"他本来应该来的。","literal_translation":"他 / 来 / 应该 / 但是","grammar_points":[],"token_breakdown":[],"omissions":[],"nuance":"","examples":[],"why_this_expression":"","alternative_expressions":[]}'
+                            }
+                        }
+                    ],
+                    "usage": {"prompt_tokens": 3, "completion_tokens": 5, "total_tokens": 8},
+                },
+            },
+        )()
+
+    monkeypatch.setattr(GeminiProvider, "_get_access_token", lambda self: "test-token")
+    monkeypatch.setattr(ai_provider.httpx, "post", fake_post)
+
+    provider = GeminiProvider(
+        project_id="project-yomuyomu",
+        location="global",
+        model="google/gemini-3.5-flash",
+        timeout_seconds=30,
+        max_retries=0,
+    )
+    result = provider.generate({"sentence": "彼は来るはずだったのに"}, "v2")
+
+    assert seen["url"] == "https://aiplatform.googleapis.com/v1/projects/project-yomuyomu/locations/global/endpoints/openapi/chat/completions"
+    assert seen["headers"]["Authorization"] == "Bearer test-token"
+    assert seen["json"]["model"] == "google/gemini-3.5-flash"
+    assert seen["json"]["response_format"] == {"type": "json_object"}
+    assert result.provider_name == "gemini"
+    assert result.prompt_tokens == 3
 
 
 def test_no_key_provider_explains_shirahane_sentence(monkeypatch) -> None:

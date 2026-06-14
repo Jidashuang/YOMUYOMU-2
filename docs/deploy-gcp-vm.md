@@ -158,7 +158,11 @@ Required changes:
 - `JWT_SECRET`: at least 32 random characters
 - `WEB_ORIGIN`: `http://VM_EXTERNAL_IP` for the first deploy, or `https://your-domain.com`
 - `YOMUYOMU_SITE_ADDRESS`: `:80` for first deploy by IP, or `your-domain.com` after DNS is ready
-- `OPENAI_API_KEY`: set only when you want real AI explanations
+- `LLM_PROVIDER`: `gemini`
+- `GEMINI_PROJECT_ID`: your Google Cloud project ID
+- `GEMINI_LOCATION`: `global`
+- `GEMINI_MODEL`: `google/gemini-3.5-flash`
+- `OPENAI_API_KEY`: optional; set only when you want to switch `LLM_PROVIDER` back to `openai`
 
 Generate secrets on the VM:
 

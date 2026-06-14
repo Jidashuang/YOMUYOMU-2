@@ -4,6 +4,7 @@ import json
 import re
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
 import httpx
@@ -286,12 +287,22 @@ class NoKeyChineseExplanationProvider:
 
 class OpenAIProvider:
     provider_name = "openai"
+    response_label = "OpenAI"
 
     def __init__(self, api_key: str, model: str, timeout_seconds: float, max_retries: int):
         self.api_key = api_key
         self.model = model
         self.timeout_seconds = max(timeout_seconds, 1.0)
         self.max_retries = max(max_retries, 0)
+
+    def _endpoint_url(self) -> str:
+        return "https://api.openai.com/v1/chat/completions"
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
     def _build_payload(self, payload: dict[str, Any], prompt_version: str) -> dict[str, Any]:
         system_prompt = (
@@ -328,7 +339,7 @@ class OpenAIProvider:
         content = response_json.get("choices", [{}])[0].get("message", {}).get("content", "")
         if isinstance(content, str):
             return content
-        raise AIProviderError("invalid_response", "OpenAI response content is not string", retryable=True)
+        raise AIProviderError("invalid_response", f"{self.response_label} response content is not string", retryable=True)
 
     def _try_parse_json(self, text: str) -> dict[str, Any] | None:
         candidates = [text]
@@ -380,11 +391,8 @@ class OpenAIProvider:
 
         try:
             response = httpx.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
+                self._endpoint_url(),
+                headers=self._headers(),
                 json=request_payload,
                 timeout=self.timeout_seconds,
             )
@@ -407,12 +415,12 @@ class OpenAIProvider:
             raise AIProviderError("invalid_response", str(exc), retryable=True) from exc
 
         if not isinstance(payload_json, dict):
-            raise AIProviderError("invalid_response", "OpenAI response root must be object", retryable=True)
+            raise AIProviderError("invalid_response", f"{self.response_label} response root must be object", retryable=True)
 
         content = self._extract_content(payload_json)
         parsed = self._try_parse_json(content)
         if parsed is None:
-            raise AIProviderError("parse_error", "Failed to parse OpenAI JSON content", retryable=True)
+            raise AIProviderError("parse_error", f"Failed to parse {self.response_label} JSON content", retryable=True)
 
         usage_tokens = self._extract_usage_tokens(payload_json)
         return parsed, usage_tokens
@@ -442,8 +450,69 @@ class OpenAIProvider:
         raise last_error
 
 
+class GeminiProvider(OpenAIProvider):
+    provider_name = "gemini"
+    response_label = "Gemini"
+
+    def __init__(self, project_id: str | None, location: str, model: str, timeout_seconds: float, max_retries: int):
+        super().__init__(api_key="", model=model, timeout_seconds=timeout_seconds, max_retries=max_retries)
+        self.project_id = project_id.strip() if project_id else None
+        self.location = (location or "us-central1").strip()
+        self._access_token: str | None = None
+        self._access_token_expires_at: datetime | None = None
+
+    def _endpoint_url(self) -> str:
+        if not self.project_id:
+            raise AIProviderError("auth_error", "GEMINI_PROJECT_ID is not configured", retryable=False)
+        if self.location == "global":
+            host = "https://aiplatform.googleapis.com"
+        else:
+            host = f"https://{self.location}-aiplatform.googleapis.com"
+        return f"{host}/v1/projects/{self.project_id}/locations/{self.location}/endpoints/openapi/chat/completions"
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self._get_access_token()}",
+            "Content-Type": "application/json",
+        }
+
+    def _get_access_token(self) -> str:
+        now = datetime.now(UTC)
+        if self._access_token and self._access_token_expires_at and self._access_token_expires_at > now + timedelta(seconds=60):
+            return self._access_token
+
+        try:
+            import google.auth
+            import google.auth.transport.requests
+        except ImportError as exc:
+            raise AIProviderError("auth_error", "google-auth is not installed", retryable=False) from exc
+
+        try:
+            credentials, detected_project_id = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+            credentials.refresh(google.auth.transport.requests.Request())
+        except Exception as exc:  # noqa: BLE001
+            raise AIProviderError("auth_error", str(exc), retryable=True) from exc
+
+        if not self.project_id and detected_project_id:
+            self.project_id = detected_project_id
+        if not credentials.token:
+            raise AIProviderError("auth_error", "Google Cloud credentials did not return an access token", retryable=True)
+
+        self._access_token = credentials.token
+        self._access_token_expires_at = credentials.expiry.replace(tzinfo=UTC) if credentials.expiry else now + timedelta(minutes=45)
+        return self._access_token
+
+
 def get_ai_provider(settings: Settings) -> AIProvider:
     provider_name = settings.llm_provider.strip().lower()
+    if provider_name == "gemini":
+        return GeminiProvider(
+            project_id=settings.gemini_project_id,
+            location=settings.gemini_location,
+            model=settings.gemini_model,
+            timeout_seconds=settings.openai_timeout_seconds,
+            max_retries=settings.openai_max_retries,
+        )
     if provider_name == "openai" and settings.openai_api_key:
         return OpenAIProvider(
             api_key=settings.openai_api_key,
