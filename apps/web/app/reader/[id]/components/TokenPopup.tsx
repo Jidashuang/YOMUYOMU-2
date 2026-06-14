@@ -129,6 +129,15 @@ export function TokenPopup({
         <span className="font-medium">用法：</span>
         {usageNote}
       </p>
+      {firstEntry?.source_name && firstEntry.source_url ? (
+        <p className="mt-2 text-[11px] text-zinc-400">
+          来源：
+          <a className="underline hover:text-zinc-600" href={firstEntry.source_url} target="_blank" rel="noreferrer">
+            {firstEntry.source_name}
+          </a>
+          （CC BY-SA 4.0）
+        </p>
+      ) : null}
 
       <button
         type="button"

@@ -60,6 +60,8 @@ test("reader critical flow smoke", async ({ page }) => {
         usage_zh: "在句中表示某人来到当前场景。",
         example_ja: "友達が家に来る。",
         example_zh: "朋友来家里。",
+        source_name: "中文维基词典",
+        source_url: "https://zh.wiktionary.org/wiki/来る",
         example_sentence: "",
         usage_note: "",
         jlpt_level: "N5",
@@ -351,6 +353,7 @@ test("reader critical flow smoke", async ({ page }) => {
   await expect(page.getByTestId("token-popup")).toContainText("例句：友達が家に来る。");
   await expect(page.getByTestId("token-popup")).toContainText("译文：朋友来家里。");
   await expect(page.getByTestId("token-popup")).toContainText("在句中表示某人来到当前场景。");
+  await expect(page.getByTestId("token-popup")).toContainText("来源：中文维基词典");
   await expect(page.getByTestId("token-popup")).toContainText("加入生词本");
   await page
     .getByTestId("token-popup-add-vocab")
