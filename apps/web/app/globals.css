@@ -5,7 +5,7 @@
 :root {
   --reader-font-size: 18px;
   --reader-line-height: 1.9;
-  --reader-measure: 42rem;
+  --reader-measure: 64rem;
 
   /* Reader surface theme — default "white". Only consumed by reader surfaces
      (see .reader-surface / [var(--reader-*)] usages), so other pages are unaffected. */
@@ -56,6 +56,7 @@ body {
 
 /* Constrains the reading column to the configured measure. */
 .reader-measure {
+  width: 100%;
   max-width: var(--reader-measure);
   margin-left: auto;
   margin-right: auto;

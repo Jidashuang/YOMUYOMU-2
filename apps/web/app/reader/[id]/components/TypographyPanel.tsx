@@ -27,7 +27,7 @@ export function TypographyPanel() {
   const reset = () => {
     setFontSize(18);
     setLineHeight(1.9);
-    setMeasure(42);
+    setMeasure(64);
   };
 
   return (

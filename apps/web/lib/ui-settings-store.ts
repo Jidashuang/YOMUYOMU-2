@@ -10,7 +10,7 @@ export type ReaderTheme = "white" | "paper" | "dark";
 
 export const READER_FONT_SIZE_RANGE = { min: 14, max: 30, step: 1 } as const;
 export const READER_LINE_HEIGHT_RANGE = { min: 1.2, max: 2.6, step: 0.1 } as const;
-export const READER_MEASURE_RANGE = { min: 30, max: 60, step: 1 } as const;
+export const READER_MEASURE_RANGE = { min: 30, max: 84, step: 1 } as const;
 
 interface UISettings {
   theme: ThemeMode;
@@ -39,7 +39,7 @@ export const useUISettingsStore = create<UISettings>()(
       theme: "light",
       fontSize: 18,
       lineHeight: 1.9,
-      measure: 42,
+      measure: 64,
       readerTheme: "paper",
       annotationLevel: "N3",
       furiganaVisible: false,
@@ -51,6 +51,19 @@ export const useUISettingsStore = create<UISettings>()(
       setAnnotationLevel: (annotationLevel) => set({ annotationLevel }),
       setFuriganaVisible: (furiganaVisible) => set({ furiganaVisible }),
     }),
-    { name: "yomuyomu-ui-settings" }
+    {
+      name: "yomuyomu-ui-settings",
+      version: 1,
+      migrate: (persistedState) => {
+        if (!persistedState || typeof persistedState !== "object") {
+          return persistedState as UISettings;
+        }
+        const state = persistedState as Partial<UISettings>;
+        return {
+          ...state,
+          measure: state.measure === undefined || state.measure === 42 ? 64 : state.measure,
+        } as UISettings;
+      },
+    }
   )
 );
