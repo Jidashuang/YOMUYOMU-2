@@ -52,9 +52,9 @@ def upgrade() -> None:
           end_offset_in_block = COALESCE(h.end_offset, 0),
           text_quote = COALESCE(h.text, '')
         FROM (
-          SELECT article_id, MIN(id) AS block_id
+          SELECT DISTINCT ON (article_id) article_id, id AS block_id
           FROM article_blocks
-          GROUP BY article_id
+          ORDER BY article_id, block_index, id::text
         ) AS b
         WHERE h.article_id = b.article_id
         """

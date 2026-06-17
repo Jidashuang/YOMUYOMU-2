@@ -59,6 +59,8 @@ export interface ArticleSummary {
   status: ArticleStatus;
   processing_error?: string | null;
   created_at: string;
+  processed_block_count: number;
+  total_block_count: number | null;
 }
 
 export interface ArticleToken {
@@ -315,6 +317,12 @@ export interface LookupEntry {
   pos: string[];
   meanings: string[];
   primary_meaning: string;
+  meaning_zh?: string | null;
+  usage_zh?: string | null;
+  example_ja?: string | null;
+  example_zh?: string | null;
+  source_name?: string | null;
+  source_url?: string | null;
   example_sentence: string;
   usage_note: string;
   jlpt_level: JlptLevel;
@@ -333,7 +341,8 @@ export type ProductEventName =
   | "highlight_created"
   | "ai_explanation_requested"
   | "ai_explanation_succeeded"
-  | "ai_explanation_failed";
+  | "ai_explanation_failed"
+  | "vocab_reviewed";
 
 export interface UsageCounts {
   lookup_count: number;

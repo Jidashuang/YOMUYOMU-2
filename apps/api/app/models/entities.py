@@ -30,6 +30,8 @@ class Article(Base):
     raw_content: Mapped[str] = mapped_column(Text)
     normalized_content: Mapped[str | None] = mapped_column(Text, nullable=True)
     processing_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    processed_block_count: Mapped[int] = mapped_column(Integer, default=0)
+    total_block_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

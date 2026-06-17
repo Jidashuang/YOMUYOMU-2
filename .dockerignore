@@ -3,10 +3,15 @@
 node_modules
 **/node_modules
 **/.next
+**/.next-playwright
 **/__pycache__
 **/.pytest_cache
 **/.venv
+.worktrees
+test-results
+playwright-report
 *.pyc
 .env
 .env.local
+.env.gcp-vm
 .DS_Store

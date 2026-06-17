@@ -37,7 +37,7 @@ async function request(path: string, options: RequestOptions = {}): Promise<Resp
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
 
-  if (response.status === 401) {
+  if (auth && response.status === 401) {
     useAuthStore.getState().clearAuth();
     throw new UnauthorizedError("Session expired");
   }

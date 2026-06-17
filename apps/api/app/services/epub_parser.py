@@ -34,12 +34,14 @@ _BLOCK_TAGS = {
     "th",
     "tr",
 }
-_IGNORED_TAGS = {"script", "style", "noscript"}
+_IGNORED_TAGS = {"script", "style", "noscript", "rt", "rp"}
 _HTML_MEDIA_TYPES = {
     "application/xhtml+xml",
     "text/html",
     "application/xml",
 }
+MAX_EPUB_BYTES = 20 * 1024 * 1024
+_JAPANESE_SPACING_CHARS = r"\u3040-\u30ff\u3400-\u9fff\uf900-\ufaff々〆〤ヶヵー、。・！？「」『』（）［］【】"
 
 
 class _HTMLToTextParser(HTMLParser):
@@ -71,13 +73,17 @@ class _HTMLToTextParser(HTMLParser):
     def handle_data(self, data: str) -> None:
         if self._ignored_depth > 0:
             return
-        if data:
-            self._parts.append(data)
+        normalized = re.sub(r"\s+", " ", data)
+        if normalized.strip():
+            self._parts.append(normalized)
 
     def get_text(self) -> str:
         raw = "".join(self._parts)
         raw = re.sub(r"[ \t\r\f\v]+", " ", raw)
-        lines = [line.strip() for line in raw.split("\n")]
+        lines = [
+            re.sub(fr"(?<=[{_JAPANESE_SPACING_CHARS}]) (?=[{_JAPANESE_SPACING_CHARS}])", "", line.strip())
+            for line in raw.split("\n")
+        ]
         collapsed_lines = [line for line in lines if line]
         return "\n".join(collapsed_lines).strip()
 
@@ -106,6 +112,11 @@ def _decode_epub_payload(raw_content: str) -> bytes:
     if not decoded:
         raise ValueError("EPUB payload is empty after decoding")
     return decoded
+
+
+def validate_epub_payload_size(raw_content: str) -> None:
+    if len(_decode_epub_payload(raw_content)) > MAX_EPUB_BYTES:
+        raise ValueError("EPUB 文件超过 20MB 限制，请选择更小的文件。")
 
 
 def _read_xml_from_zip(book: zipfile.ZipFile, path: str) -> ET.Element:
@@ -191,6 +202,8 @@ def _html_to_text(content: bytes) -> str:
 
 def extract_text_from_epub_payload(raw_content: str) -> str:
     epub_bytes = _decode_epub_payload(raw_content)
+    if len(epub_bytes) > MAX_EPUB_BYTES:
+        raise ValueError("EPUB 文件超过 20MB 限制，请选择更小的文件。")
     try:
         with zipfile.ZipFile(io.BytesIO(epub_bytes)) as book:
             opf_path = _find_opf_path(book)

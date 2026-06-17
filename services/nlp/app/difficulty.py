@@ -37,5 +37,11 @@ def resolve_difficulty(
     if jlpt != "Unknown":
         return jlpt, freq if freq != "Unknown" else "Unknown", "jlpt"
     if freq != "Unknown":
+        if freq == "outside-10k":
+            return "N1", freq, "frequency"
+        if freq == "top-10k":
+            return "N2", freq, "frequency"
+        if freq == "top-5k":
+            return "N3", freq, "frequency"
         return "Unknown", freq, "frequency"
     return "Unknown", "Unknown", "unknown"

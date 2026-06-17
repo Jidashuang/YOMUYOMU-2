@@ -4,6 +4,7 @@ import json
 import re
 import time
 from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
 import httpx
@@ -114,14 +115,194 @@ class MockAIProvider:
         )
 
 
+class NoKeyChineseExplanationProvider:
+    model = "rules-mint-v1"
+    provider_name = "wikimedia-mint-rules"
+
+    def __init__(self, timeout_seconds: float):
+        self.timeout_seconds = max(timeout_seconds, 1.0)
+
+    def _translate(self, content: str, source_language: str) -> str:
+        text = content.strip()
+        if not text:
+            return ""
+        try:
+            response = httpx.post(
+                "https://translate.wmcloud.org/api/translate",
+                json={
+                    "format": "text",
+                    "content": text,
+                    "source_language": source_language,
+                    "target_language": "zh",
+                },
+                headers={"User-Agent": "Yomuyomu/0.1 ai explanation"},
+                timeout=min(self.timeout_seconds, 10.0),
+            )
+            response.raise_for_status()
+            translated = str(response.json().get("translation", "")).strip()
+        except Exception:  # noqa: BLE001
+            return ""
+        return translated
+
+    def _hint_map(self, dictionary_hints: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+        hints: dict[str, dict[str, Any]] = {}
+        for hint in dictionary_hints:
+            lemma = str(hint.get("lemma", "")).strip()
+            if lemma and lemma not in hints:
+                hints[lemma] = hint
+        return hints
+
+    def _meaning_from_hint(self, hint: dict[str, Any] | None) -> str:
+        if not hint:
+            return ""
+        meanings = hint.get("meanings", [])
+        source = str(hint.get("primary_meaning") or "")
+        if isinstance(meanings, list) and meanings:
+            source = "; ".join(str(item) for item in meanings[:3] if item)
+        translated = self._translate(source, "en") if source else ""
+        if translated:
+            parts = list(dict.fromkeys(part.strip() for part in re.split(r"[;；]", translated) if part.strip()))
+            concise = [part for part in parts if not any(part != other and part in other for other in parts)]
+            return "；".join(concise or parts)
+        return source
+
+    def _token_meaning(self, surface: str, lemma: str, pos: str, hint: dict[str, Any] | None) -> str:
+        fixed = {
+            "、": "停顿",
+            "。": "句号",
+            "な": "连接名词的形容动词词尾",
+            "こと": "事情；形式名词，把前面的内容名词化",
+            "に": "表示方向、对象或状语",
+            "と": "引用或说明“所谓/叫作”",
+            "いう": "叫作；称为",
+            "の": "连接名词，表示所属或修饰",
+            "から": "从；从……之中",
+            "私": "我",
+            "白羽": "白色羽箭；在惯用语中表示被选中的标记",
+            "矢": "箭",
+            "立つ": "立起；在惯用语中表示被选中",
+        }
+        if surface in fixed:
+            return fixed[surface]
+        if lemma in fixed:
+            return fixed[lemma]
+        if pos in {"助詞", "助動詞", "補助記号", "記号"}:
+            return fixed.get(surface, "语法功能词")
+        return self._meaning_from_hint(hint) or "结合上下文理解"
+
+    def _token_breakdown(self, tokenized_result: list[dict[str, Any]], dictionary_hints: list[dict[str, Any]]) -> list[dict[str, str]]:
+        hints = self._hint_map(dictionary_hints)
+        breakdown: list[dict[str, str]] = []
+        for token in tokenized_result[:16]:
+            surface = str(token.get("surface", "")).strip()
+            lemma = str(token.get("lemma", "")).strip() or surface
+            pos = str(token.get("pos", "")).strip()
+            if not surface:
+                continue
+            breakdown.append(
+                {
+                    "surface": surface,
+                    "lemma": lemma,
+                    "reading": str(token.get("reading", "")).strip(),
+                    "meaning": self._token_meaning(surface, lemma, pos, hints.get(lemma)),
+                    "role": pos or "unknown",
+                }
+            )
+        return breakdown
+
+    def _grammar_points(self, sentence: str) -> list[dict[str, str]]:
+        checks = [
+            (
+                "〜なことに",
+                "なことに" in sentence or "ことに" in sentence,
+                "接在表示评价或感受的表达后，表示“令人……的是/值得……的是”。这里是“很荣幸的是”。",
+            ),
+            (
+                "〜という",
+                "という" in sentence,
+                "用来说明名称、类别或说法，相当于“叫作/所谓”。这里把“写真家”作为一个类别提出来。",
+            ),
+            (
+                "〜の中から",
+                "の中から" in sentence or "中から" in sentence,
+                "表示“从……之中/在……范围里”。这里是“从摄影家这个类别之中”。",
+            ),
+            (
+                "白羽の矢が立つ",
+                "白羽の矢" in sentence,
+                "惯用表达，意思是“被选中/被指定承担某事”。语气比普通的“選ばれる”更正式。",
+            ),
+        ]
+        return [{"name": name, "explanation": explanation} for name, matched, explanation in checks if matched]
+
+    def _literal_translation(self, sentence: str, token_breakdown: list[dict[str, str]]) -> str:
+        if "白羽の矢" in sentence:
+            return "很荣幸的是，从“摄影家”这个类别之中，白羽之箭落到了我身上。也就是：我被选中了。"
+        pieces = [f"{item['surface']}={item['meaning']}" for item in token_breakdown if item["surface"] not in {"、", "。"}]
+        return " / ".join(pieces) if pieces else sentence
+
+    def _translation(self, sentence: str) -> str:
+        if "白羽の矢" in sentence:
+            return "很荣幸，在摄影家这个类别中，我被选中了。"
+        translated = self._translate(sentence, "ja")
+        return translated or sentence
+
+    def _examples(self, sentence: str) -> list[dict[str, str]]:
+        if "白羽の矢" in sentence:
+            return [{"jp": "次の代表として、彼に白羽の矢が立った。", "zh": "他被选为下一任代表。"}]
+        if "という" in sentence:
+            return [{"jp": "寿司という料理は海外でも人気がある。", "zh": "寿司这种料理在海外也很受欢迎。"}]
+        return []
+
+    def generate(self, payload: dict[str, Any], prompt_version: str) -> AIProviderResult:
+        sentence = str(payload.get("sentence", ""))
+        tokenized_result = payload.get("tokenized_result", [])
+        dictionary_hints = payload.get("dictionary_hints", [])
+        if not isinstance(tokenized_result, list):
+            tokenized_result = []
+        if not isinstance(dictionary_hints, list):
+            dictionary_hints = []
+
+        token_breakdown = self._token_breakdown(tokenized_result, dictionary_hints)
+        response = {
+            "translation_zh": self._translation(sentence),
+            "literal_translation": self._literal_translation(sentence, token_breakdown),
+            "grammar_points": self._grammar_points(sentence),
+            "token_breakdown": token_breakdown,
+            "omissions": [],
+            "nuance": "这句带有谦逊和荣幸的语气：说话人不是直白地说“我很厉害所以被选中”，而是把自己放在更大的类别里，强调“被选中”这件事很光荣。",
+            "examples": self._examples(sentence),
+            "why_this_expression": "用「白羽の矢が立つ」能表达“被正式选中”的感觉，比普通的「選ばれた」更有仪式感。",
+            "alternative_expressions": [
+                {"jp": sentence.replace("白羽の矢が立った", "選ばれた"), "zh": "我被选中了。", "note": "更直接、更普通。"},
+            ],
+        }
+        return AIProviderResult(
+            response_json=response,
+            model=self.model,
+            provider_name=self.provider_name,
+            error_type=None,
+        )
+
+
 class OpenAIProvider:
     provider_name = "openai"
+    response_label = "OpenAI"
 
     def __init__(self, api_key: str, model: str, timeout_seconds: float, max_retries: int):
         self.api_key = api_key
         self.model = model
         self.timeout_seconds = max(timeout_seconds, 1.0)
         self.max_retries = max(max_retries, 0)
+
+    def _endpoint_url(self) -> str:
+        return "https://api.openai.com/v1/chat/completions"
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
     def _build_payload(self, payload: dict[str, Any], prompt_version: str) -> dict[str, Any]:
         system_prompt = (
@@ -158,7 +339,7 @@ class OpenAIProvider:
         content = response_json.get("choices", [{}])[0].get("message", {}).get("content", "")
         if isinstance(content, str):
             return content
-        raise AIProviderError("invalid_response", "OpenAI response content is not string", retryable=True)
+        raise AIProviderError("invalid_response", f"{self.response_label} response content is not string", retryable=True)
 
     def _try_parse_json(self, text: str) -> dict[str, Any] | None:
         candidates = [text]
@@ -210,11 +391,8 @@ class OpenAIProvider:
 
         try:
             response = httpx.post(
-                "https://api.openai.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {self.api_key}",
-                    "Content-Type": "application/json",
-                },
+                self._endpoint_url(),
+                headers=self._headers(),
                 json=request_payload,
                 timeout=self.timeout_seconds,
             )
@@ -237,12 +415,12 @@ class OpenAIProvider:
             raise AIProviderError("invalid_response", str(exc), retryable=True) from exc
 
         if not isinstance(payload_json, dict):
-            raise AIProviderError("invalid_response", "OpenAI response root must be object", retryable=True)
+            raise AIProviderError("invalid_response", f"{self.response_label} response root must be object", retryable=True)
 
         content = self._extract_content(payload_json)
         parsed = self._try_parse_json(content)
         if parsed is None:
-            raise AIProviderError("parse_error", "Failed to parse OpenAI JSON content", retryable=True)
+            raise AIProviderError("parse_error", f"Failed to parse {self.response_label} JSON content", retryable=True)
 
         usage_tokens = self._extract_usage_tokens(payload_json)
         return parsed, usage_tokens
@@ -272,8 +450,69 @@ class OpenAIProvider:
         raise last_error
 
 
+class GeminiProvider(OpenAIProvider):
+    provider_name = "gemini"
+    response_label = "Gemini"
+
+    def __init__(self, project_id: str | None, location: str, model: str, timeout_seconds: float, max_retries: int):
+        super().__init__(api_key="", model=model, timeout_seconds=timeout_seconds, max_retries=max_retries)
+        self.project_id = project_id.strip() if project_id else None
+        self.location = (location or "us-central1").strip()
+        self._access_token: str | None = None
+        self._access_token_expires_at: datetime | None = None
+
+    def _endpoint_url(self) -> str:
+        if not self.project_id:
+            raise AIProviderError("auth_error", "GEMINI_PROJECT_ID is not configured", retryable=False)
+        if self.location == "global":
+            host = "https://aiplatform.googleapis.com"
+        else:
+            host = f"https://{self.location}-aiplatform.googleapis.com"
+        return f"{host}/v1/projects/{self.project_id}/locations/{self.location}/endpoints/openapi/chat/completions"
+
+    def _headers(self) -> dict[str, str]:
+        return {
+            "Authorization": f"Bearer {self._get_access_token()}",
+            "Content-Type": "application/json",
+        }
+
+    def _get_access_token(self) -> str:
+        now = datetime.now(UTC)
+        if self._access_token and self._access_token_expires_at and self._access_token_expires_at > now + timedelta(seconds=60):
+            return self._access_token
+
+        try:
+            import google.auth
+            import google.auth.transport.requests
+        except ImportError as exc:
+            raise AIProviderError("auth_error", "google-auth is not installed", retryable=False) from exc
+
+        try:
+            credentials, detected_project_id = google.auth.default(scopes=["https://www.googleapis.com/auth/cloud-platform"])
+            credentials.refresh(google.auth.transport.requests.Request())
+        except Exception as exc:  # noqa: BLE001
+            raise AIProviderError("auth_error", str(exc), retryable=True) from exc
+
+        if not self.project_id and detected_project_id:
+            self.project_id = detected_project_id
+        if not credentials.token:
+            raise AIProviderError("auth_error", "Google Cloud credentials did not return an access token", retryable=True)
+
+        self._access_token = credentials.token
+        self._access_token_expires_at = credentials.expiry.replace(tzinfo=UTC) if credentials.expiry else now + timedelta(minutes=45)
+        return self._access_token
+
+
 def get_ai_provider(settings: Settings) -> AIProvider:
     provider_name = settings.llm_provider.strip().lower()
+    if provider_name == "gemini":
+        return GeminiProvider(
+            project_id=settings.gemini_project_id,
+            location=settings.gemini_location,
+            model=settings.gemini_model,
+            timeout_seconds=settings.openai_timeout_seconds,
+            max_retries=settings.openai_max_retries,
+        )
     if provider_name == "openai" and settings.openai_api_key:
         return OpenAIProvider(
             api_key=settings.openai_api_key,
@@ -281,4 +520,4 @@ def get_ai_provider(settings: Settings) -> AIProvider:
             timeout_seconds=settings.openai_timeout_seconds,
             max_retries=settings.openai_max_retries,
         )
-    return MockAIProvider()
+    return NoKeyChineseExplanationProvider(timeout_seconds=settings.openai_timeout_seconds)

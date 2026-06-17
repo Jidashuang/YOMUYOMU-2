@@ -12,9 +12,13 @@ test("reader critical flow smoke", async ({ page }) => {
     source_type: "text",
     status: "ready",
     processing_error: null,
+    annotation_status: "ready",
+    annotation_error: null,
     created_at: "2026-03-17T00:00:00Z",
-    raw_content: "彼は来るはずだったのに。",
-    normalized_content: "彼は来るはずだったのに。",
+    processed_block_count: 36,
+    total_block_count: 36,
+    raw_content: "彼は来るはずだったのに。\n姿を見せた。",
+    normalized_content: "彼は来るはずだったのに。\n姿を見せた。",
     blocks: [
       {
         id: blockId,
@@ -30,6 +34,17 @@ test("reader critical flow smoke", async ({ page }) => {
           { surface: "。", lemma: "。", reading: "。", pos: "記号", start_offset: 11, end_offset: 12, jlpt_level: "Unknown", frequency_band: "Unknown" },
         ],
       },
+      {
+        id: "22222222-2222-4222-8222-222222222223",
+        block_index: 1,
+        text: "姿を見せた。",
+        tokens: [
+          { surface: "姿", lemma: "姿", reading: "すがた", pos: "名詞", start_offset: 0, end_offset: 1, jlpt_level: "N2", frequency_band: "Unknown" },
+          { surface: "を", lemma: "を", reading: "を", pos: "助詞", start_offset: 1, end_offset: 2, jlpt_level: "Unknown", frequency_band: "Unknown" },
+          { surface: "見せた", lemma: "見せる", reading: "みせた", pos: "動詞", start_offset: 2, end_offset: 5, jlpt_level: "N1", frequency_band: "Unknown" },
+          { surface: "。", lemma: "。", reading: "。", pos: "記号", start_offset: 5, end_offset: 6, jlpt_level: "Unknown", frequency_band: "Unknown" },
+        ],
+      },
     ],
   };
 
@@ -41,6 +56,14 @@ test("reader critical flow smoke", async ({ page }) => {
         pos: ["verb"],
         meanings: ["to come", "to arrive"],
         primary_meaning: "to come",
+        meaning_zh: "来；到来",
+        usage_zh: "在句中表示某人来到当前场景。",
+        example_ja: "友達が家に来る。",
+        example_zh: "朋友来家里。",
+        source_name: "中文维基词典",
+        source_url: "https://zh.wiktionary.org/wiki/来る",
+        example_sentence: "",
+        usage_note: "",
         jlpt_level: "N5",
         frequency_band: "top-1k",
       },
@@ -58,7 +81,14 @@ test("reader critical flow smoke", async ({ page }) => {
 
   let highlights: Array<Record<string, unknown>> = [];
   let aiHistory: Array<Record<string, unknown>> = [];
-  let progress: Record<string, unknown> | null = null;
+  let savedVocab: Array<Record<string, unknown>> = [];
+  let progress: Record<string, unknown> | null = {
+    id: "77777777-7777-4777-8777-777777777777",
+    article_id: articleId,
+    progress_percent: 75,
+    last_position: null,
+    updated_at: "2026-03-17T00:00:00Z",
+  };
 
   await page.route(`${API_BASE}/**`, async (route) => {
     const request = route.request();
@@ -83,7 +113,24 @@ test("reader critical flow smoke", async ({ page }) => {
     }
 
     if (method === "GET" && url.pathname === "/articles") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ id: articleId, title: article.title, source_type: "text", status: "ready", processing_error: null, created_at: article.created_at }]) });
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: articleId,
+            title: article.title,
+            source_type: "text",
+            status: "ready",
+            processing_error: null,
+            annotation_status: "ready",
+            annotation_error: null,
+            created_at: article.created_at,
+            processed_block_count: article.processed_block_count,
+            total_block_count: article.total_block_count,
+          },
+        ]),
+      });
     }
 
     if (method === "POST" && url.pathname === "/articles") {
@@ -95,7 +142,33 @@ test("reader critical flow smoke", async ({ page }) => {
     }
 
     if (method === "POST" && url.pathname === "/reader-data/lookup") {
+      const payload = await json();
+      if (payload.surface === "姿") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            entries: [
+              {
+                lemma: "姿",
+                reading: "すがた",
+                pos: ["unknown"],
+                meanings: ["No dictionary match"],
+                primary_meaning: "No dictionary match",
+                example_sentence: "姿を見せた。",
+                usage_note: "No usage note available.",
+                jlpt_level: "Unknown",
+                frequency_band: "Unknown",
+              },
+            ],
+          }),
+        });
+      }
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(lookupEntries) });
+    }
+
+    if (method === "GET" && url.pathname === "/vocab") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(savedVocab) });
     }
 
     if (method === "GET" && url.pathname === "/reader-data/highlights") {
@@ -127,22 +200,28 @@ test("reader critical flow smoke", async ({ page }) => {
     }
 
     if (method === "POST" && url.pathname === "/reader-data/vocab") {
+      const payload = await json();
+      const created = {
+        id: `55555555-5555-4555-8555-${String(savedVocab.length + 1).padStart(12, "0")}`,
+        surface: payload.surface,
+        lemma: payload.lemma,
+        reading: payload.reading,
+        pos: payload.pos,
+        meaning_snapshot: payload.meaning_snapshot,
+        jlpt_level: payload.jlpt_level,
+        frequency_band: payload.frequency_band,
+        source_article_id: payload.source_article_id,
+        source_sentence: payload.source_sentence,
+        status: "new",
+        next_review_at: null,
+        review_count: 0,
+        created_at: "2026-03-17T00:00:00Z",
+      };
+      savedVocab = [created, ...savedVocab];
       return route.fulfill({
         status: 201,
         contentType: "application/json",
-        body: JSON.stringify({
-          id: "55555555-5555-4555-8555-555555555555",
-          surface: "来る",
-          lemma: "来る",
-          reading: "くる",
-          pos: "verb",
-          meaning_snapshot: { meanings: ["to come"] },
-          jlpt_level: "N5",
-          frequency_band: "top-1k",
-          source_article_id: articleId,
-          source_sentence: "彼は来るはずだったのに。",
-          created_at: "2026-03-17T00:00:00Z",
-        }),
+        body: JSON.stringify(created),
       });
     }
 
@@ -177,6 +256,17 @@ test("reader critical flow smoke", async ({ page }) => {
         },
         tokenized_result: [],
         dictionary_hints: [],
+        suggested_vocab: [
+          {
+            surface: "はず",
+            lemma: "はず",
+            reading: "はず",
+            pos: "noun",
+            meaning: "按理；预期",
+            jlpt_level: "N3",
+            frequency_band: "top-10k",
+          },
+        ],
         created_at: "2026-03-17T00:00:00Z",
       };
       aiHistory = [created, ...aiHistory];
@@ -219,13 +309,63 @@ test("reader critical flow smoke", async ({ page }) => {
 
   await expect(page).toHaveURL(new RegExp(`/reader/${articleId}$`));
   await expect(page.getByTestId("reader-article-view")).toBeVisible();
+  await expect(page.getByTestId("reader-pagination-controls")).toContainText("第 2 / 2 页");
+  await expect(page.getByTestId("annotation-controls")).toBeVisible();
+  await expect(page.getByTestId("annotation-controls")).toContainText("N3/N2/N1");
+  await expect(page.getByTestId("annotation-controls")).not.toContainText("未分级实词");
+  const n3Annotated = await page.locator("[data-testid='reader-token']", { hasText: "はず" }).first().evaluate((node) =>
+    node.className.includes("bg-sky")
+  );
+  expect(n3Annotated).toBeTruthy();
+  const n2Annotated = await page.locator("[data-testid='reader-token']", { hasText: "姿" }).first().evaluate((node) =>
+    node.className.includes("bg-amber")
+  );
+  expect(n2Annotated).toBeTruthy();
+  const n1Annotated = await page.locator("[data-testid='reader-token']", { hasText: "見せた" }).first().evaluate((node) =>
+    node.className.includes("bg-rose")
+  );
+  expect(n1Annotated).toBeTruthy();
+  const unknownParticleAnnotated = await page.locator("[data-testid='reader-token']", { hasText: "を" }).first().evaluate((node) =>
+    /bg-(sky|amber|rose|stone)/.test(node.className)
+  );
+  expect(unknownParticleAnnotated).toBeFalsy();
+  const tokenClassName = await page.locator("[data-testid='reader-token']", { hasText: "彼" }).first().getAttribute("class");
+  expect(tokenClassName).not.toContain("mx-");
+  expect(tokenClassName).not.toContain("px-0.5");
+  await page.getByTestId("annotation-level-n2").click();
+  await expect.poll(() =>
+    page.locator("[data-testid='reader-token']", { hasText: "はず" }).first().evaluate((node) => node.className.includes("bg-sky"))
+  ).toBeFalsy();
+  await expect.poll(() =>
+    page.locator("[data-testid='reader-token']", { hasText: "姿" }).first().evaluate((node) => node.className.includes("bg-amber"))
+  ).toBeTruthy();
+  await page.getByTestId("annotation-level-n1").click();
+  await expect.poll(() =>
+    page.locator("[data-testid='reader-token']", { hasText: "姿" }).first().evaluate((node) => node.className.includes("bg-amber"))
+  ).toBeFalsy();
+  await expect.poll(() =>
+    page.locator("[data-testid='reader-token']", { hasText: "見せた" }).first().evaluate((node) => node.className.includes("bg-rose"))
+  ).toBeTruthy();
 
   await page.locator("[data-testid='reader-token']", { hasText: "来る" }).first().click();
   await expect(page.getByTestId("token-popup")).toBeVisible();
-  await expect(page.getByTestId("token-popup")).toContainText("primary_meaning");
+  await expect(page.getByTestId("token-popup-meaning")).toContainText("来；到来");
+  await expect(page.getByTestId("token-popup")).toContainText("例句：友達が家に来る。");
+  await expect(page.getByTestId("token-popup")).toContainText("译文：朋友来家里。");
+  await expect(page.getByTestId("token-popup")).toContainText("在句中表示某人来到当前场景。");
+  await expect(page.getByTestId("token-popup")).toContainText("来源：中文维基词典");
+  await expect(page.getByTestId("token-popup")).toContainText("加入生词本");
   await page
     .getByTestId("token-popup-add-vocab")
     .evaluate((element) => (element as HTMLButtonElement).click());
+  await expect(page.getByTestId("token-popup-vocab-feedback")).toContainText("已加入生词本");
+
+  await page.locator("[data-testid='reader-token']", { hasText: "姿" }).first().click();
+  await expect(page.getByTestId("token-popup")).toBeVisible();
+  await expect(page.getByTestId("token-popup")).not.toContainText("No dictionary match");
+  await expect(page.getByTestId("token-popup-meaning")).toContainText("词典暂未收录");
+  await expect(page.getByTestId("token-popup")).toContainText("原文句：");
+  await expect(page.getByTestId("token-popup")).toContainText("在当前句中作为");
 
   await page.evaluate(() => {
     const tokens = Array.from(document.querySelectorAll<HTMLElement>("[data-testid='reader-token']"));
@@ -247,11 +387,12 @@ test("reader critical flow smoke", async ({ page }) => {
   await page.getByTestId("highlight-menu-ai").click();
 
   await expect(page.getByTestId("explanation-panel")).toBeVisible();
-  await expect(page.getByTestId("explanation-translation")).toContainText("translation_zh");
-  await expect(page.getByTestId("explanation-literal")).toContainText("literal_translation");
+  await expect(page.getByTestId("explanation-translation")).toContainText("他本该来的");
+  await expect(page.getByTestId("explanation-literal")).toContainText("来 应该");
   await expect(page.getByTestId("explanation-grammar-points")).toBeVisible();
   await expect(page.getByTestId("explanation-token-breakdown")).toBeVisible();
   await expect(page.getByTestId("explanation-examples")).toBeVisible();
+  await expect(page.getByTestId("suggested-vocab-list")).toContainText("加入生词本");
 
   await page.evaluate(() => {
     const tokens = Array.from(document.querySelectorAll<HTMLElement>("[data-testid='reader-token']"));
@@ -274,6 +415,7 @@ test("reader critical flow smoke", async ({ page }) => {
 
   await page.reload();
 
+  await expect(page.getByTestId("reader-pagination-controls")).toContainText("第 2 / 2 页");
   await expect(page.getByTestId("highlight-list")).toContainText("来るはず");
   const tokenHighlighted = await page.locator("[data-testid='reader-token']", { hasText: "来る" }).first().evaluate((node) =>
     node.className.includes("bg-yellow")

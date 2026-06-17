@@ -136,6 +136,7 @@ const explanationPanelProps: ExplanationPanelProps = {
 
 const readerArticleViewProps: ReaderArticleViewProps = {
   blocks: dummyBlocks,
+  annotationLevel: "N2",
   highlightsByBlock: dummyHighlights,
   onTokenSelect: () => undefined,
   onSelectionChange: () => undefined,

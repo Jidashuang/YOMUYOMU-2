@@ -42,6 +42,8 @@ class ArticleSummaryResponse(BaseModel):
     status: ArticleStatus
     processing_error: str | None = None
     created_at: datetime
+    processed_block_count: int
+    total_block_count: int | None = None
 
 
 class ArticleDetailResponse(ArticleSummaryResponse):

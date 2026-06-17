@@ -5,6 +5,31 @@
 :root {
   --reader-font-size: 18px;
   --reader-line-height: 1.9;
+  --reader-measure: 64rem;
+
+  /* Reader surface theme — default "white". Only consumed by reader surfaces
+     (see .reader-surface / [var(--reader-*)] usages), so other pages are unaffected. */
+  --reader-bg: #ffffff;
+  --reader-fg: #18181b;
+  --reader-muted: #6b7280;
+  --reader-border: #e7e5e4;
+  --reader-canvas: #f5f5f4;
+}
+
+[data-reader-theme="paper"] {
+  --reader-bg: #f8f3e8;
+  --reader-fg: #3a342b;
+  --reader-muted: #8a7d66;
+  --reader-border: #e7dcc6;
+  --reader-canvas: #efe6d4;
+}
+
+[data-reader-theme="dark"] {
+  --reader-bg: #18181b;
+  --reader-fg: #e4e4e7;
+  --reader-muted: #a1a1aa;
+  --reader-border: #3f3f46;
+  --reader-canvas: #09090b;
 }
 
 html,
@@ -13,10 +38,34 @@ body {
 }
 
 body {
-  font-family: "Noto Sans JP", "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  font-family: "PingFang SC", "Noto Sans CJK SC", "Microsoft YaHei", "Hiragino Sans GB", sans-serif;
 }
 
 .reader-text {
+  font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", "PingFang SC", sans-serif;
   font-size: var(--reader-font-size);
   line-height: var(--reader-line-height);
+}
+
+/* Reading surface driven by the active reader theme. */
+.reader-surface {
+  background-color: var(--reader-bg);
+  color: var(--reader-fg);
+  border-color: var(--reader-border);
+}
+
+/* Constrains the reading column to the configured measure. */
+.reader-measure {
+  width: 100%;
+  max-width: var(--reader-measure);
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Transient flash when jumping to a search result (no transform, keeps fixed popups intact). */
+.reader-block-flash {
+  border-radius: 0.5rem;
+  box-shadow: 0 0 0 2px rgba(26, 115, 232, 0.5);
+  background-color: rgba(26, 115, 232, 0.08);
+  transition: box-shadow 0.4s ease, background-color 0.4s ease;
 }

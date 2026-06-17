@@ -15,10 +15,15 @@ __pycache__/
 # Env
 .env
 .env.local
+.env.gcp-vm
 
 # Logs
 *.log
 test-results/
+playwright-report/
+apps/web/.next-playwright/
+.worktrees/
+services/nlp/data/jmdict.sqlite
 
 # OS
 .DS_Store
