@@ -131,7 +131,7 @@ python scripts/import_jmdict/import_jmdict.py \
 说明：
 - 默认查询路径是 JMDict sqlite。
 - seed lookup 仅用于开发 fallback（`ALLOW_SEED_FALLBACK=true` 时启用）。
-- AI provider 默认是 `openai`；若未配置 `OPENAI_API_KEY`，服务会自动降级为 `mock`。
+- AI provider 默认是 `gemini`；线上通过 Google Cloud 身份调用 Gemini，缺少权限或配置时会降级为无 key 中文解释。
 
 ## 测试与校验
 

@@ -148,7 +148,7 @@ export function ExplanationPanel({
             <div className="mt-2 space-y-2 text-xs" data-testid="suggested-vocab-list">
               {(latestAi.suggested_vocab ?? []).map((item) => {
                 const key = `${item.lemma}:${item.pos}`;
-                const saved = savedKeys?.has(key) ?? false;
+                const alreadySaved = savedKeys?.has(key) ?? false;
                 return (
                   <div
                     key={key}
@@ -162,10 +162,10 @@ export function ExplanationPanel({
                     <button
                       type="button"
                       className="rounded bg-brand-500 px-2 py-1 text-white hover:bg-brand-700 disabled:opacity-60"
-                      disabled={!onAddSuggestedVocab || addingSuggestedKey === key || saved}
+                      disabled={!onAddSuggestedVocab || addingSuggestedKey === key || alreadySaved}
                       onClick={() => onAddSuggestedVocab?.(item)}
                     >
-                      {saved ? "已收录" : addingSuggestedKey === key ? "加入中..." : "加入生词本"}
+                      {alreadySaved ? "已收录" : addingSuggestedKey === key ? "加入中..." : "加入生词本"}
                     </button>
                   </div>
                 );
