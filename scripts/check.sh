@@ -5,16 +5,19 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 PY="${PYTHON:-python3}"
 
-echo "[1/4] Web typecheck"
+echo "[1/5] Web typecheck"
 npm run --silent typecheck:web
 
-echo "[2/4] Web unit tests"
+echo "[2/5] Web unit tests"
 npm test --silent --workspace @yomuyomu/web
 
-echo "[3/4] API tests"
+echo "[3/5] API tests"
 "$PY" -m pytest -q apps/api/tests
 
-echo "[4/4] NLP tests"
+echo "[4/5] NLP tests"
 "$PY" -m pytest -q services/nlp/tests
+
+echo "[5/5] API / shared-types contract drift"
+"$PY" scripts/check_contracts.py
 
 echo "All checks passed."
