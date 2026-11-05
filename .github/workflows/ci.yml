@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+    branches: [main, "claude/**", "codex/**"]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            apps/api/requirements.txt
+            services/nlp/requirements.txt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+      - run: pip install -r apps/api/requirements.txt -r services/nlp/requirements.txt pytest
+      - run: npm ci
+      - run: bash scripts/check.sh
