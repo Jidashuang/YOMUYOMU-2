@@ -1,6 +1,6 @@
-# Yomuyomu MVP Monorepo (Phase 6)
+# Genbun（原 Yomuyomu）Monorepo
 
-Yomuyomu 是面向日语学习者的 Web SaaS 阅读器 MVP。
+Genbun 是面向中文母语、N2–N1 主力（N3 过渡）日语学习者的 Web 阅读器：导入原文 → 点词查义 → 划句 AI 拆解 → 生词本 → 到期复习。
 
 本阶段目标：把产品从“阅读工具”推进到“学习闭环”。
 
@@ -134,6 +134,14 @@ python scripts/import_jmdict/import_jmdict.py \
 - AI provider 默认是 `gemini`；线上通过 Google Cloud 身份调用 Gemini，缺少权限或配置时会降级为无 key 中文解释。
 
 ## 测试与校验
+
+一条命令跑完 web 类型检查、web 单测、API 与 NLP 测试、契约漂移检查（需先装好依赖；可用 `PYTHON=/path/to/python` 指定解释器）：
+
+```bash
+npm run check
+```
+
+分别运行：
 
 ```bash
 source .venv-nlp313/bin/activate && pytest -q services/nlp/tests

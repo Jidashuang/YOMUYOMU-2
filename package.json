@@ -12,6 +12,7 @@
     "build:web": "npm run build --workspace @yomuyomu/web",
     "typecheck:web": "tsc --project apps/web/tsconfig.json --noEmit",
     "lint:web": "npm run lint --workspace @yomuyomu/web",
+    "check": "bash scripts/check.sh",
     "test:e2e": "playwright test",
     "test:phase45": "bash scripts/test_phase45.sh",
     "test:phase5a": "bash scripts/test_phase45.sh",

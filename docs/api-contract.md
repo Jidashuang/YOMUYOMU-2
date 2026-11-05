@@ -1,4 +1,4 @@
-# Yomuyomu API Contract (Phase 6)
+# Genbun API Contract
 
 Contract source of truth for current MVP APIs.
 
@@ -34,6 +34,11 @@ Authorization: Bearer <jwt>
 ### GET `/articles/{id}`
 ### DELETE `/articles/{id}`
 
+### GET `/articles/{id}/search?q={text}`
+- In-article full-text search (case-insensitive substring, `q` 1–100 chars, `%`/`_` treated literally).
+- Response: `{ "hits": [{ "block_index": 3, "snippet": "…", "count": 2 }] }`, ordered by `block_index`, max 200 hits.
+- 404 when the article does not exist or belongs to another user.
+
 ## Reader data
 
 ### POST `/reader-data/lookup`
@@ -63,14 +68,24 @@ Response:
       "pos": ["verb"],
       "meanings": ["to come", "to arrive"],
       "primary_meaning": "to come",
+      "meaning_zh": "来；到来",
+      "usage_zh": "在原句中作为动词使用，表示「来」。",
+      "example_ja": "彼は来るはずだったのに。",
+      "example_zh": "他本来应该来的。",
+      "source_name": "中文维基词典",
+      "source_url": "https://zh.wiktionary.org/wiki/来る",
       "example_sentence": "彼は来るはずだったのに。",
-      "usage_note": "Common verb usage.",
+      "usage_note": "",
       "jlpt_level": "N5",
       "frequency_band": "top-1k"
     }
   ]
 }
 ```
+
+Chinese gloss fields (`meaning_zh`, `usage_zh`, `example_ja`, `example_zh`, `source_name`, `source_url`) are
+optional (`null` when unavailable). When shown to users, attribute `source_name` / `source_url`
+(中文维基词典 content is CC BY-SA 4.0).
 
 Side effect:
 - Emits event `token_lookup` (with article_id).
