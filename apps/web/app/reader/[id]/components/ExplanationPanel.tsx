@@ -15,6 +15,9 @@ interface ExplanationPanelProps {
   onAddSuggestedVocab?: (item: SuggestedVocabItem) => void;
 }
 
+// Developer-only diagnostics; hidden from end users unless NEXT_PUBLIC_SHOW_AI_DEBUG=true.
+const SHOW_AI_DEBUG = process.env.NEXT_PUBLIC_SHOW_AI_DEBUG === "true";
+
 function ProviderFooter({
   provider,
   model,
@@ -28,6 +31,7 @@ function ProviderFooter({
   fromCache: boolean;
   errorType?: string | null;
 }) {
+  if (!SHOW_AI_DEBUG) return null;
   return (
     <p className="mt-3 text-[11px] text-zinc-400">
       调试信息 · {provider} / {model} / prompt {promptVersion} / {fromCache ? "命中缓存" : "新生成"}
