@@ -3,7 +3,12 @@
 import type { ArticleBlock, ArticleToken, HighlightResponse, JlptLevel } from "@yomuyomu/shared-types";
 import { useRef } from "react";
 
-import { shouldAnnotate, type AnnotationLevel } from "../../../../lib/reader-annotation";
+import {
+  katakanaToHiragana,
+  shouldAnnotate,
+  shouldShowFurigana,
+  type AnnotationLevel,
+} from "../../../../lib/reader-annotation";
 import { closestTokenElement, tokenHasHighlight } from "./reader-utils";
 import type { SelectedTokenState, SelectionMenuState } from "./types";
 
@@ -29,6 +34,7 @@ function annotationClassForToken(token: ArticleToken, annotationLevel: Annotatio
 interface ReaderArticleViewProps {
   blocks: ArticleBlock[];
   annotationLevel: AnnotationLevel;
+  furiganaVisible: boolean;
   highlightsByBlock: Map<string, HighlightResponse[]>;
   onTokenSelect: (value: SelectedTokenState) => void;
   onSelectionChange: (menu: SelectionMenuState | null, error: string | null) => void;
@@ -37,6 +43,7 @@ interface ReaderArticleViewProps {
 export function ReaderArticleView({
   blocks,
   annotationLevel,
+  furiganaVisible,
   highlightsByBlock,
   onTokenSelect,
   onSelectionChange,
@@ -146,7 +153,14 @@ export function ReaderArticleView({
                         });
                       }}
                     >
-                      {token.surface}
+                      {furiganaVisible && shouldShowFurigana(token) ? (
+                        <ruby>
+                          {token.surface}
+                          <rt>{katakanaToHiragana(token.reading)}</rt>
+                        </ruby>
+                      ) : (
+                        token.surface
+                      )}
                     </span>
                   );
                 })

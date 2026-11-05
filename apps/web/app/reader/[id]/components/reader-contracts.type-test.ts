@@ -105,9 +105,6 @@ const dummyHistory: AIExplanationHistoryItem[] = [dummyLatestAi];
 
 const progressProps: ProgressBarProps = {
   progressPercent: 40,
-  onProgressChange: () => undefined,
-  onSave: () => undefined,
-  isSaving: false,
 };
 
 const tokenPopupProps: TokenPopupProps = {
@@ -137,6 +134,7 @@ const explanationPanelProps: ExplanationPanelProps = {
 const readerArticleViewProps: ReaderArticleViewProps = {
   blocks: dummyBlocks,
   annotationLevel: "N2",
+  furiganaVisible: false,
   highlightsByBlock: dummyHighlights,
   onTokenSelect: () => undefined,
   onSelectionChange: () => undefined,

@@ -4,6 +4,7 @@ import type {
   AIExplanationResponse,
   ArticleCreateRequest,
   ArticleDetail,
+  ArticleSearchResponse,
   ArticleSummary,
   AuthLoginRequest,
   AuthRegisterRequest,
@@ -94,6 +95,11 @@ export function retryAnnotation(articleId: string): Promise<ArticleDetail> {
     method: "POST",
     auth: true,
   });
+}
+
+export function searchArticle(articleId: string, query: string): Promise<ArticleSearchResponse> {
+  const search = new URLSearchParams({ q: query }).toString();
+  return requestJson<ArticleSearchResponse>(`/articles/${articleId}/search?${search}`, { auth: true });
 }
 
 export function lookupWord(input: LookupRequest): Promise<LookupResponse> {

@@ -50,13 +50,18 @@ export function TokenPopup({
   const meaningText = isLookupLoading
     ? "查询中..."
     : hasDictionaryMatch
-      ? firstEntry?.primary_meaning
+      ? firstEntry?.meaning_zh || firstEntry?.primary_meaning
       : "词典暂未收录，先看原文标注信息";
-  const exampleSentence = firstEntry?.example_sentence || selectedToken.blockText;
+  const generatedExample = hasDictionaryMatch ? firstEntry?.example_ja?.trim() || "" : "";
+  const dictionaryExample = hasDictionaryMatch ? firstEntry?.example_sentence?.trim() || "" : "";
+  const exampleSentence = generatedExample || dictionaryExample || selectedToken.blockText;
+  const exampleLabel = generatedExample || dictionaryExample ? "例句：" : "原文句：";
   const usageNote =
-    hasDictionaryMatch && firstEntry?.usage_note && firstEntry.usage_note !== "No usage note available."
-      ? firstEntry.usage_note
-      : `在当前句中作为「${partsOfSpeech}」出现，可结合例句和上下文理解。`;
+    hasDictionaryMatch && firstEntry?.usage_zh
+      ? firstEntry.usage_zh
+      : hasDictionaryMatch && firstEntry?.usage_note && firstEntry.usage_note !== "No usage note available."
+        ? firstEntry.usage_note
+      : `在当前句中作为「${partsOfSpeech}」出现，可结合原文上下文理解。`;
 
   return (
     <div
@@ -80,7 +85,7 @@ export function TokenPopup({
       </div>
 
       <div className="mt-3 rounded-md bg-zinc-50 p-3 dark:bg-zinc-800/40">
-        <p className="text-xs font-medium text-zinc-500">中文意思</p>
+        <p className="text-xs font-medium text-zinc-500">{firstEntry?.meaning_zh ? "中文释义" : "释义"}</p>
         <p data-testid="token-popup-meaning" className="mt-1 text-base font-medium">
           {meaningText}
         </p>
@@ -107,15 +112,32 @@ export function TokenPopup({
       </div>
 
       {exampleSentence ? (
-        <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-300">
-          <span className="font-medium">例：</span>
-          {exampleSentence}
-        </p>
+        <div className="mt-3 text-xs text-zinc-600 dark:text-zinc-300">
+          <p>
+            <span className="font-medium">{exampleLabel}</span>
+            {exampleSentence}
+          </p>
+          {generatedExample && firstEntry?.example_zh ? (
+            <p className="mt-1">
+              <span className="font-medium">译文：</span>
+              {firstEntry.example_zh}
+            </p>
+          ) : null}
+        </div>
       ) : null}
       <p className="mt-1 text-xs text-zinc-500">
         <span className="font-medium">用法：</span>
         {usageNote}
       </p>
+      {firstEntry?.source_name && firstEntry.source_url ? (
+        <p className="mt-2 text-[11px] text-zinc-400">
+          来源：
+          <a className="underline hover:text-zinc-600" href={firstEntry.source_url} target="_blank" rel="noreferrer">
+            {firstEntry.source_name}
+          </a>
+          {firstEntry.source_name === "中文维基词典" ? "（CC BY-SA 4.0）" : null}
+        </p>
+      ) : null}
 
       <button
         type="button"

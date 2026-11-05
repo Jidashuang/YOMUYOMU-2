@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ArticleBlock, JlptLevel } from "@yomuyomu/shared-types";
 
-import { pageHasAnnotatableToken, shouldAnnotate } from "./reader-annotation";
+import { katakanaToHiragana, pageHasAnnotatableToken, shouldAnnotate, shouldShowFurigana } from "./reader-annotation";
 
 describe("shouldAnnotate", () => {
   it("colors a token only when its level is at or harder than the selected level", () => {
@@ -61,5 +61,32 @@ describe("pageHasAnnotatableToken", () => {
 
   it("is false for an empty page", () => {
     expect(pageHasAnnotatableToken([], "N3")).toBe(false);
+  });
+});
+
+describe("katakanaToHiragana", () => {
+  it("converts katakana readings to hiragana", () => {
+    expect(katakanaToHiragana("クル")).toBe("くる");
+    expect(katakanaToHiragana("ショウ")).toBe("しょう");
+    expect(katakanaToHiragana("ニホン")).toBe("にほん");
+  });
+
+  it("leaves the long-vowel mark, kanji and other characters untouched", () => {
+    expect(katakanaToHiragana("コーヒー")).toBe("こーひー");
+    expect(katakanaToHiragana("来る")).toBe("来る");
+    expect(katakanaToHiragana("")).toBe("");
+  });
+});
+
+describe("shouldShowFurigana", () => {
+  it("is true for kanji-containing tokens that have a reading", () => {
+    expect(shouldShowFurigana({ surface: "来る", reading: "クル" })).toBe(true);
+    expect(shouldShowFurigana({ surface: "日本", reading: "ニホン" })).toBe(true);
+  });
+
+  it("is false without a reading or without kanji", () => {
+    expect(shouldShowFurigana({ surface: "来る", reading: "" })).toBe(false);
+    expect(shouldShowFurigana({ surface: "から", reading: "カラ" })).toBe(false);
+    expect(shouldShowFurigana({ surface: "、", reading: "" })).toBe(false);
   });
 });

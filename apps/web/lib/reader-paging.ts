@@ -27,3 +27,11 @@ export function computeReaderPaging(input: ReaderPagingInput): ReaderPaging {
   const currentReaderPage = Math.min(Math.max(input.currentPageIndex, 0), totalReaderPages - 1);
   return { visibleBlockCount, totalReaderPages, currentReaderPage };
 }
+
+// Which reader page a given block index falls on (used to jump from a whole-book search hit).
+export function pageForBlockIndex(blockIndex: number, blocksPerPage: number): number {
+  if (blocksPerPage <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.floor(blockIndex / blocksPerPage));
+}

@@ -2,7 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useAuthStore } from "../lib/auth-store";
+import { listVocab } from "../lib/api";
 
 const NAV_LINKS: Array<{ href: string; label: string; testId?: string }> = [
   { href: "/library", label: "书架" },
@@ -14,6 +16,15 @@ const NAV_LINKS: Array<{ href: string; label: string; testId?: string }> = [
 export function TopNav() {
   const { user, clearAuth } = useAuthStore();
   const pathname = usePathname();
+
+  // Surface how many vocab items are due for review, as a badge on the 生词 link.
+  const dueReviewQuery = useQuery({
+    queryKey: ["vocab", "review_due"],
+    queryFn: () => listVocab("review_due"),
+    enabled: Boolean(user),
+    refetchInterval: 5 * 60 * 1000,
+  });
+  const dueCount = dueReviewQuery.data?.length ?? 0;
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
@@ -44,6 +55,15 @@ export function TopNav() {
               }`}
             >
               {link.label}
+              {link.href === "/vocab" && dueCount > 0 ? (
+                <span
+                  data-testid="vocab-due-badge"
+                  title={`${dueCount} 个生词待复习`}
+                  className="ml-1 inline-flex min-w-[1.25rem] items-center justify-center rounded-full bg-brand-500 px-1.5 py-0.5 text-[10px] font-semibold leading-none text-white"
+                >
+                  {dueCount > 99 ? "99+" : dueCount}
+                </span>
+              ) : null}
             </Link>
           ))}
         </div>
