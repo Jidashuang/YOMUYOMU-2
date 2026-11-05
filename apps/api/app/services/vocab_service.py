@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models.entities import VocabItem
@@ -63,6 +64,29 @@ def apply_review_result(item: VocabItem, result: VocabReviewResult, now: datetim
 
 def create_vocab_item(db: Session, user_id: UUID, payload: VocabItemCreateRequest) -> VocabItem:
     now = _utc_now()
+    # Dedupe by (user_id, lemma, pos): saving the same word again is idempotent — return the
+    # existing item (don't reset its review schedule), just backfill a reading/meaning if the
+    # earlier save lacked one. This keeps the review list and the "已收录" indicator honest.
+    existing = db.scalar(
+        select(VocabItem).where(
+            VocabItem.user_id == user_id,
+            VocabItem.lemma == payload.lemma,
+            VocabItem.pos == payload.pos,
+        )
+    )
+    if existing is not None:
+        changed = False
+        if not existing.reading and payload.reading:
+            existing.reading = payload.reading
+            changed = True
+        if not existing.meaning_snapshot and payload.meaning_snapshot:
+            existing.meaning_snapshot = payload.meaning_snapshot
+            changed = True
+        if changed:
+            db.commit()
+            db.refresh(existing)
+        return existing
+
     item = VocabItem(
         user_id=user_id,
         surface=payload.surface,

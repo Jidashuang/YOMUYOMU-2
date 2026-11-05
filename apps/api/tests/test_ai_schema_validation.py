@@ -1,10 +1,21 @@
 from __future__ import annotations
 
 from app.schemas.ai_explanation import AIExplanationJSON
+from app.services import ai_provider
 from app.services.ai_explanation_service import generate_explanation
 
 
-def test_ai_explanation_schema_validation() -> None:
+def test_ai_explanation_schema_validation(monkeypatch) -> None:
+    monkeypatch.setattr(
+        ai_provider.httpx,
+        "post",
+        lambda *args, **kwargs: type(
+            "FakeResponse",
+            (),
+            {"raise_for_status": lambda self: None, "json": lambda self: {"translation": "他本来应该来的。"}},
+        )(),
+    )
+
     response, meta = generate_explanation(
         sentence="彼は来るはずだったのに",
         previous_sentence="昨日は連絡があった。",

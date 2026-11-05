@@ -284,6 +284,9 @@ def process_article(article_id: UUID) -> None:
         except ValueError as exc:
             article.status = "failed"
             article.processing_error = str(exc)
+            article.annotation_status = "failed"
+            article.annotation_error = str(exc)
+            article.annotation_updated_at = _utcnow()
             record_product_event(
                 db,
                 user_id=article.user_id,
@@ -341,6 +344,9 @@ def process_article(article_id: UUID) -> None:
         if article and _article_block_count(db, article.id) == 0:
             article.status = "failed"
             article.processing_error = str(exc)[:3000]
+            article.annotation_status = "failed"
+            article.annotation_error = article.processing_error
+            article.annotation_updated_at = _utcnow()
             db.commit()
         return
     finally:

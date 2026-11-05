@@ -795,3 +795,37 @@ def test_retry_annotation_rejects_when_text_not_ready() -> None:
             assert exc.status_code == 409
         else:
             raise AssertionError("expected 409 when status is not ready")
+
+
+def test_article_search_finds_matches_across_blocks() -> None:
+    from app.api.routes.articles import search_article
+
+    testing_session_local = _memory_session()
+    with testing_session_local() as db:
+        user = User(id=uuid.uuid4(), email="search@example.com", password_hash="hash")
+        article = Article(
+            id=uuid.uuid4(),
+            user_id=user.id,
+            title="search",
+            source_type="text",
+            status="ready",
+            annotation_status="ready",
+            raw_content="x",
+            normalized_content="x",
+            total_block_count=3,
+        )
+        db.add(user)
+        db.add(article)
+        db.add(ArticleBlock(article_id=article.id, block_index=0, text="これは最初の段落。"))
+        db.add(ArticleBlock(article_id=article.id, block_index=1, text="ここに目的の言葉がある。"))
+        db.add(ArticleBlock(article_id=article.id, block_index=2, text="最後の段落。目的をもう一度。"))
+        db.commit()
+        article_id = article.id
+
+        result = search_article(str(article_id), q="目的", db=db, current_user=user)
+        assert [hit.block_index for hit in result.hits] == [1, 2]
+        assert all("目的" in hit.snippet for hit in result.hits)
+        assert all(hit.count == 1 for hit in result.hits)
+
+        empty = search_article(str(article_id), q="存在しない言葉", db=db, current_user=user)
+        assert empty.hits == []

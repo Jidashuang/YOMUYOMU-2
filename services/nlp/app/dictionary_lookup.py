@@ -67,6 +67,9 @@ class DictionaryLookup:
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Sudachi tokenizer unavailable for lookup normalization: %s", exc)
 
+    def _connect_db(self) -> sqlite3.Connection:
+        return sqlite3.connect(f"{self.jmdict_db_path.resolve().as_uri()}?mode=ro&immutable=1", uri=True)
+
     def _load_seed(self) -> dict[str, dict]:
         try:
             with self.seed_path.open("r", encoding="utf-8") as file:
@@ -82,7 +85,7 @@ class DictionaryLookup:
             return self._db_columns
 
         try:
-            with sqlite3.connect(self.jmdict_db_path) as conn:
+            with self._connect_db() as conn:
                 rows = conn.execute("PRAGMA table_info(entries)").fetchall()
             self._db_columns = {str(row[1]) for row in rows}
             return self._db_columns
@@ -211,7 +214,7 @@ class DictionaryLookup:
             LIMIT ?
         """
 
-        with sqlite3.connect(self.jmdict_db_path) as conn:
+        with self._connect_db() as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(query, (candidate.value, limit)).fetchall()
         return rows
@@ -246,12 +249,8 @@ class DictionaryLookup:
         example_sentence = str(row["example_sentence"] or "").strip() if "example_sentence" in row.keys() else ""
         usage_note = str(row["usage_note"] or "").strip() if "usage_note" in row.keys() else ""
 
-        if not example_sentence:
-            example_sentence = self._context_example_sentence(context=context, surface=surface, lemma=lemma)
-        if not example_sentence:
-            example_sentence = f"{surface or lemma}。"
-        if not usage_note:
-            usage_note = f"Common {pos[0]} usage."
+        if usage_note == "General usage." or (usage_note.startswith("Common ") and usage_note.endswith(" usage.")):
+            usage_note = ""
 
         jlpt_level = str(row["jlpt_level"] or self.jlpt_map.get(lemma, "Unknown"))
         frequency_band = str(row["frequency_band"] or self.frequency_map.get(lemma, "Unknown"))

@@ -11,8 +11,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import gzip
 import json
 import sqlite3
+from collections.abc import Iterator
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -28,9 +30,24 @@ def _clean_pos(value: str) -> str:
     return value.strip().strip("&;") or "unknown"
 
 
+XML_LANG = "{http://www.w3.org/XML/1998/namespace}lang"
+
+
 def _extract_text_list(parent: ET.Element, path: str) -> list[str]:
     values: list[str] = []
     for node in parent.findall(path):
+        text = (node.text or "").strip()
+        if text:
+            values.append(text)
+    return values
+
+
+def _extract_glosses(sense: ET.Element, languages: set[str]) -> list[str]:
+    values: list[str] = []
+    for node in sense.findall("gloss"):
+        lang = node.attrib.get(XML_LANG, "eng")
+        if lang not in languages:
+            continue
         text = (node.text or "").strip()
         if text:
             values.append(text)
@@ -43,12 +60,10 @@ def _extract_usage_note(sense: ET.Element, fallback_pos: list[str]) -> str:
     parts = [item.strip() for item in (infos + misc) if item.strip()]
     if parts:
         return " / ".join(dict.fromkeys(parts))
-    if fallback_pos:
-        return f"Common {'/'.join(fallback_pos)} usage."
-    return "General usage."
+    return ""
 
 
-def _extract_example_sentence(sense: ET.Element, fallback_surface: str) -> str:
+def _extract_example_sentence(sense: ET.Element) -> str:
     candidates = (
         _extract_text_list(sense, "example/ex_text")
         + _extract_text_list(sense, "example/ex_sent")
@@ -58,7 +73,7 @@ def _extract_example_sentence(sense: ET.Element, fallback_surface: str) -> str:
         cleaned = value.strip()
         if cleaned:
             return cleaned
-    return f"{fallback_surface}。"
+    return ""
 
 
 def _entry_priority(priority_tags: list[str]) -> tuple[int, int]:
@@ -82,7 +97,7 @@ def _entry_priority(priority_tags: list[str]) -> tuple[int, int]:
     return is_common, score
 
 
-def _build_records(entry: ET.Element) -> list[dict]:
+def _build_records(entry: ET.Element, languages: set[str]) -> list[dict]:
     kanji_forms = _extract_text_list(entry, "k_ele/keb")
     reading_forms = _extract_text_list(entry, "r_ele/reb")
 
@@ -107,7 +122,7 @@ def _build_records(entry: ET.Element) -> list[dict]:
         if sense_pos_raw:
             inherited_pos = [_clean_pos(item) for item in sense_pos_raw]
 
-        glosses = [_clean_text(item) for item in _extract_text_list(sense, "gloss") if _clean_text(item)]
+        glosses = [_clean_text(item) for item in _extract_glosses(sense, languages) if _clean_text(item)]
         if not glosses:
             continue
 
@@ -115,7 +130,7 @@ def _build_records(entry: ET.Element) -> list[dict]:
         pos_json = json.dumps(list(dict.fromkeys(inherited_pos)), ensure_ascii=False)
         meanings_json = json.dumps(glosses[:12], ensure_ascii=False)
         usage_note = _extract_usage_note(sense, inherited_pos)
-        example_sentence = _extract_example_sentence(sense, primary_lemma)
+        example_sentence = _extract_example_sentence(sense)
 
         for surface in surfaces:
             records.append(
@@ -171,7 +186,19 @@ def _init_db(conn: sqlite3.Connection) -> None:
     )
 
 
-def import_jmdict(input_path: Path, output_path: Path, limit: int | None) -> tuple[int, int]:
+def _iter_entries(input_path: Path) -> Iterator[ET.Element]:
+    if input_path.suffix == ".gz":
+        with gzip.open(input_path, "rb") as file:
+            for _, elem in ET.iterparse(file, events=("end",)):
+                if elem.tag == "entry":
+                    yield elem
+    else:
+        for _, elem in ET.iterparse(input_path, events=("end",)):
+            if elem.tag == "entry":
+                yield elem
+
+
+def import_jmdict(input_path: Path, output_path: Path, limit: int | None, languages: set[str]) -> tuple[int, int]:
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     with sqlite3.connect(output_path) as conn:
@@ -183,12 +210,9 @@ def import_jmdict(input_path: Path, output_path: Path, limit: int | None) -> tup
         inserted_rows = 0
         parsed_entries = 0
 
-        for _, elem in ET.iterparse(input_path, events=("end",)):
-            if elem.tag != "entry":
-                continue
-
+        for elem in _iter_entries(input_path):
             parsed_entries += 1
-            for record in _build_records(elem):
+            for record in _build_records(elem, languages):
                 conn.execute(
                     """
                     INSERT OR IGNORE INTO entries (
@@ -240,6 +264,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--input", required=True, help="Path to JMdict XML file")
     parser.add_argument("--output", default="services/nlp/data/jmdict.sqlite", help="Output sqlite path")
     parser.add_argument("--limit", type=int, default=None, help="Optional limit for quick dev import")
+    parser.add_argument(
+        "--languages",
+        default="eng",
+        help="Comma-separated gloss languages to import; JMdict uses eng when xml:lang is omitted.",
+    )
     return parser.parse_args()
 
 
@@ -251,7 +280,8 @@ def main() -> None:
     if not input_path.exists():
         raise SystemExit(f"Input file not found: {input_path}")
 
-    parsed_entries, inserted_rows = import_jmdict(input_path, output_path, args.limit)
+    languages = {item.strip() for item in args.languages.split(",") if item.strip()}
+    parsed_entries, inserted_rows = import_jmdict(input_path, output_path, args.limit, languages)
     print(f"Parsed entries: {parsed_entries}")
     print(f"Inserted rows: {inserted_rows}")
     print(f"Output sqlite: {output_path}")

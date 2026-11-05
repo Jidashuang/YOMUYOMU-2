@@ -6,7 +6,7 @@ Import JMdict XML into sqlite index consumed by `services/nlp`.
 
 ```bash
 python scripts/import_jmdict/import_jmdict.py \
-  --input /path/to/JMdict_e.xml \
+  --input /path/to/JMdict.gz \
   --output services/nlp/data/jmdict.sqlite
 ```
 
@@ -14,10 +14,13 @@ For quick local test, use `--limit`:
 
 ```bash
 python scripts/import_jmdict/import_jmdict.py \
-  --input /path/to/JMdict_e.xml \
+  --input /path/to/JMdict.gz \
   --output services/nlp/data/jmdict.sqlite \
   --limit 5000
 ```
+
+The importer accepts plain XML or `.gz` input. By default it imports English glosses (`--languages eng`) from
+JMdict; pass a comma-separated `--languages` list when importing a dictionary source with other gloss languages.
 
 ## Runtime behavior
 

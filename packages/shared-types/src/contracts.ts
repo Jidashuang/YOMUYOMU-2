@@ -90,6 +90,16 @@ export interface ArticleDetail extends ArticleSummary {
   blocks: ArticleBlock[];
 }
 
+export interface ArticleSearchHit {
+  block_index: number;
+  snippet: string;
+  count: number;
+}
+
+export interface ArticleSearchResponse {
+  hits: ArticleSearchHit[];
+}
+
 export interface VocabItemCreateRequest {
   surface: string;
   lemma: string;
@@ -320,6 +330,12 @@ export interface LookupEntry {
   pos: string[];
   meanings: string[];
   primary_meaning: string;
+  meaning_zh?: string | null;
+  usage_zh?: string | null;
+  example_ja?: string | null;
+  example_zh?: string | null;
+  source_name?: string | null;
+  source_url?: string | null;
   example_sentence: string;
   usage_note: string;
   jlpt_level: JlptLevel;

@@ -57,3 +57,13 @@ class ArticleDetailResponse(ArticleSummaryResponse):
 
 class DeleteResponse(BaseModel):
     ok: bool
+
+
+class ArticleSearchHit(BaseModel):
+    block_index: int
+    snippet: str
+    count: int
+
+
+class ArticleSearchResponse(BaseModel):
+    hits: list[ArticleSearchHit]

@@ -10,11 +10,12 @@ from typing import Any
 from app.core.cache import get_redis_client
 from app.core.config import get_settings
 from app.schemas.ai_explanation import AIExplanationJSON, SuggestedVocabItem
-from app.services.ai_provider import AIProviderError, MockAIProvider, get_ai_provider
+from app.services.ai_provider import AIProviderError, NoKeyChineseExplanationProvider, get_ai_provider
 from app.services.nlp_client import nlp_client
 
 SKIP_POS = {"助詞", "助動詞", "補助記号", "記号"}
 CONTENT_POS_KEYWORDS = ("名詞", "動詞", "形容詞", "副詞", "接頭辞", "接尾辞", "verb", "noun", "adjective", "adverb")
+AI_EXPLANATION_ENGINE_VERSION = "real-v1"
 
 _cache_lock = Lock()
 _cache_requests = 0
@@ -56,6 +57,7 @@ def build_cache_key(
             "next_sentence": next_sentence,
             "user_level": user_level,
             "prompt_version": prompt_version,
+            "engine_version": AI_EXPLANATION_ENGINE_VERSION,
         },
         ensure_ascii=False,
         sort_keys=True,
@@ -277,6 +279,33 @@ def _safe_fallback_explanation(sentence: str) -> dict[str, Any]:
     }
 
 
+def _merge_suggested_vocab_meanings(
+    suggested_vocab: list[dict[str, Any]],
+    response_json: dict[str, Any],
+) -> list[dict[str, Any]]:
+    token_meanings: dict[str, str] = {}
+    for item in response_json.get("token_breakdown", []):
+        if not isinstance(item, dict):
+            continue
+        meaning = str(item.get("meaning", "")).strip()
+        if not meaning:
+            continue
+        for key in (str(item.get("lemma", "")).strip(), str(item.get("surface", "")).strip()):
+            if key and key not in token_meanings:
+                token_meanings[key] = meaning
+
+    merged: list[dict[str, Any]] = []
+    for item in suggested_vocab:
+        updated = dict(item)
+        replacement = token_meanings.get(str(item.get("lemma", "")).strip()) or token_meanings.get(
+            str(item.get("surface", "")).strip()
+        )
+        if replacement:
+            updated["meaning"] = replacement
+        merged.append(updated)
+    return merged
+
+
 def generate_explanation(
     sentence: str,
     previous_sentence: str,
@@ -319,14 +348,14 @@ def generate_explanation(
     except AIProviderError as exc:
         provider_latency_ms = (perf_counter() - started_at) * 1000
         upstream_error_type = exc.error_type
-        fallback = MockAIProvider().generate(payload, prompt_version)
+        fallback = NoKeyChineseExplanationProvider(settings.openai_timeout_seconds).generate(payload, prompt_version)
         raw_response = fallback.response_json
         model = requested_model_name
         provider_name = requested_provider_name
     except Exception:  # noqa: BLE001
         provider_latency_ms = (perf_counter() - started_at) * 1000
         upstream_error_type = "provider_unexpected"
-        fallback = MockAIProvider().generate(payload, prompt_version)
+        fallback = NoKeyChineseExplanationProvider(settings.openai_timeout_seconds).generate(payload, prompt_version)
         raw_response = fallback.response_json
         model = requested_model_name
         provider_name = requested_provider_name
@@ -335,7 +364,7 @@ def generate_explanation(
         validated = _stabilize_explanation_json(raw_response, sentence)
     except Exception:  # noqa: BLE001
         try:
-            fallback = MockAIProvider().generate(payload, prompt_version)
+            fallback = NoKeyChineseExplanationProvider(settings.openai_timeout_seconds).generate(payload, prompt_version)
             validated = _stabilize_explanation_json(fallback.response_json, sentence)
             upstream_error_type = upstream_error_type or "parse_or_schema_error"
         except Exception:  # noqa: BLE001
@@ -346,6 +375,7 @@ def generate_explanation(
         tokenized_result=tokenized_result,
         dictionary_hints=dictionary_hints,
     )
+    suggested_vocab = _merge_suggested_vocab_meanings(suggested_vocab, validated)
 
     return validated, {
         "model": model,

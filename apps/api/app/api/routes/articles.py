@@ -23,6 +23,8 @@ from app.schemas.article import (
     ArticleBlockResponse,
     ArticleCreateRequest,
     ArticleDetailResponse,
+    ArticleSearchHit,
+    ArticleSearchResponse,
     ArticleSummaryResponse,
     ArticleTokenResponse,
     DeleteResponse,
@@ -205,6 +207,63 @@ def get_article(
     detail = _build_article_detail(db, article, block_offset=block_offset, block_limit=block_limit)
     db.rollback()
     return detail
+
+
+@router.get("/{article_id}/search", response_model=ArticleSearchResponse)
+def search_article(
+    article_id: str,
+    q: str = Query(min_length=1, max_length=100),
+    db: Session = Depends(get_db_session),
+    current_user: User = Depends(get_current_user),
+) -> ArticleSearchResponse:
+    try:
+        article_uuid = UUID(article_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found") from exc
+
+    article = db.scalar(select(Article).where(Article.id == article_uuid, Article.user_id == current_user.id))
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
+
+    needle = q.strip()
+    if not needle:
+        db.rollback()
+        return ArticleSearchResponse(hits=[])
+
+    # Escape LIKE wildcards so a literal % / _ in the query isn't treated as a pattern.
+    pattern = "%" + needle.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    rows = db.scalars(
+        select(ArticleBlock)
+        .where(ArticleBlock.article_id == article.id, ArticleBlock.text.ilike(pattern, escape="\\"))
+        .order_by(ArticleBlock.block_index.asc())
+        .limit(200)
+    ).all()
+
+    lowered = needle.lower()
+    hits: list[ArticleSearchHit] = []
+    for block in rows:
+        text = block.text or ""
+        hay = text.lower()
+        count = 0
+        first = -1
+        cursor = 0
+        while True:
+            idx = hay.find(lowered, cursor)
+            if idx == -1:
+                break
+            if first == -1:
+                first = idx
+            count += 1
+            cursor = idx + len(lowered)
+        if count == 0:
+            continue
+        start = max(0, first - 24)
+        end = min(len(text), first + len(needle) + 40)
+        snippet = ("…" if start > 0 else "") + text[start:end] + ("…" if end < len(text) else "")
+        hits.append(ArticleSearchHit(block_index=block.block_index, snippet=snippet, count=count))
+
+    db.rollback()
+    return ArticleSearchResponse(hits=hits)
 
 
 @router.post("/{article_id}/retry-annotation", response_model=ArticleDetailResponse)
