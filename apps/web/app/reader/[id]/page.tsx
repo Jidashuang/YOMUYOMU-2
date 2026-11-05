@@ -1,6 +1,12 @@
 "use client";
 
-import type { AIExplanationResponse, ArticleDetail, HighlightResponse, SuggestedVocabItem } from "@yomuyomu/shared-types";
+import type {
+  AIExplanationResponse,
+  ArticleDetail,
+  HighlightResponse,
+  LookupEntry,
+  SuggestedVocabItem,
+} from "@yomuyomu/shared-types";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import type { TouchEvent } from "react";
@@ -14,14 +20,17 @@ import {
   getReadingProgress,
   listAiExplanations,
   listHighlights,
+  listVocab,
   lookupWordInReader,
   retryAnnotation,
   saveVocabFromReader,
   updateHighlightNote,
   upsertReadingProgress,
 } from "../../../lib/api";
-import { pageHasAnnotatableToken, type AnnotationLevel } from "../../../lib/reader-annotation";
+import { katakanaToHiragana, pageHasAnnotatableToken, type AnnotationLevel } from "../../../lib/reader-annotation";
 import { computeReaderPaging } from "../../../lib/reader-paging";
+import { formatReadingPosition, pageFromProgressPercent, parseReadingPosition } from "../../../lib/reading-position";
+import { useUISettingsStore } from "../../../lib/ui-settings-store";
 import { useRequireAuth } from "../../../lib/use-require-auth";
 import { ExplanationPanel } from "./components/ExplanationPanel";
 import { HighlightMenu } from "./components/HighlightMenu";
@@ -63,6 +72,17 @@ function processingProgressText(article: ArticleDetail) {
   return `${article.processed_block_count}`;
 }
 
+function hasDictionaryMatch(entry: LookupEntry | undefined): boolean {
+  if (!entry) {
+    return false;
+  }
+  return entry.primary_meaning !== "No dictionary match" && !entry.meanings.includes("No dictionary match");
+}
+
+function vocabKeyForToken(token: { lemma: string; surface: string; pos: string }): string {
+  return `${token.lemma || token.surface}:${token.pos}`;
+}
+
 export default function ReaderPage() {
   const params = useParams<{ id: string }>();
   const queryClient = useQueryClient();
@@ -72,14 +92,19 @@ export default function ReaderPage() {
   const [selectedToken, setSelectedToken] = useState<SelectedTokenState | null>(null);
   const [selectionMenu, setSelectionMenu] = useState<SelectionMenuState | null>(null);
   const [selectionError, setSelectionError] = useState<string | null>(null);
-  const [progressPercent, setProgressPercent] = useState(0);
   const [latestAi, setLatestAi] = useState<AIExplanationResponse | null>(null);
   const [addingSuggestedKey, setAddingSuggestedKey] = useState<string | null>(null);
-  const [annotationLevel, setAnnotationLevel] = useState<AnnotationLevel>("N3");
+  const [recentlySavedTokenKey, setRecentlySavedTokenKey] = useState<string | null>(null);
+  const [progressSaveMessage, setProgressSaveMessage] = useState<string | null>(null);
+  const annotationLevel = useUISettingsStore((state) => state.annotationLevel);
+  const setAnnotationLevel = useUISettingsStore((state) => state.setAnnotationLevel);
+  const furiganaVisible = useUISettingsStore((state) => state.furiganaVisible);
+  const setFuriganaVisible = useUISettingsStore((state) => state.setFuriganaVisible);
   const [activePanel, setActivePanel] = useState<ReaderPanelKey | null>(null);
   const [pagingMode, setPagingMode] = useState<ReaderPagingMode>("scroll");
   const [currentPageIndex, setCurrentPageIndex] = useState(0);
   const touchStartXRef = useRef<number | null>(null);
+  const didRestorePositionRef = useRef(false);
   const pageBlockOffset = currentPageIndex * READER_BLOCKS_PER_PAGE;
 
   const articleQuery = useQuery({
@@ -114,11 +139,16 @@ export default function ReaderPage() {
     enabled: hydrated && isAuthorized,
   });
 
-  useEffect(() => {
-    if (progressQuery.data?.progress_percent !== undefined) {
-      setProgressPercent(progressQuery.data.progress_percent);
-    }
-  }, [progressQuery.data]);
+  // The user's saved vocab, used to show "已收录" so a word isn't added twice.
+  const savedVocabQuery = useQuery({
+    queryKey: ["vocab", "saved"],
+    queryFn: () => listVocab(),
+    enabled: hydrated && isAuthorized,
+  });
+  const savedVocabKeys = useMemo(
+    () => new Set((savedVocabQuery.data ?? []).map((item) => `${item.lemma}:${item.pos}`)),
+    [savedVocabQuery.data]
+  );
 
   const lookupQuery = useQuery({
     queryKey: ["lookup", articleId, selectedToken?.token.surface, selectedToken?.token.lemma, selectedToken?.blockId],
@@ -126,8 +156,8 @@ export default function ReaderPage() {
       lookupWordInReader({
         article_id: articleId,
         surface: selectedToken?.token.surface ?? "",
-        lemma: selectedToken?.token.lemma ?? "",
-        reading: selectedToken?.token.reading ?? "",
+        lemma: selectedToken?.token.lemma || selectedToken?.token.surface || "",
+        reading: selectedToken?.token.reading ? katakanaToHiragana(selectedToken.token.reading) : "",
         context: selectedToken?.blockText,
       }),
     enabled: Boolean(selectedToken) && hydrated && isAuthorized,
@@ -156,15 +186,23 @@ export default function ReaderPage() {
       }
       return saveVocabFromReader({
         surface: selectedToken.token.surface,
-        lemma: selectedToken.token.lemma,
+        lemma: selectedToken.token.lemma || selectedToken.token.surface,
         reading: selectedToken.token.reading,
         pos: selectedToken.token.pos,
-        meaning_snapshot: { meanings: firstEntry?.meanings ?? [] },
-        jlpt_level: firstEntry?.jlpt_level ?? selectedToken.token.jlpt_level,
-        frequency_band: firstEntry?.frequency_band ?? selectedToken.token.frequency_band,
+        meaning_snapshot: { meanings: hasDictionaryMatch(firstEntry) ? firstEntry?.meanings ?? [] : [] },
+        jlpt_level: hasDictionaryMatch(firstEntry) ? firstEntry?.jlpt_level ?? selectedToken.token.jlpt_level : selectedToken.token.jlpt_level,
+        frequency_band: hasDictionaryMatch(firstEntry)
+          ? firstEntry?.frequency_band ?? selectedToken.token.frequency_band
+          : selectedToken.token.frequency_band,
         source_article_id: articleId,
         source_sentence: selectedToken.blockText,
       });
+    },
+    onSuccess: () => {
+      if (selectedToken) {
+        setRecentlySavedTokenKey(vocabKeyForToken(selectedToken.token));
+      }
+      queryClient.invalidateQueries({ queryKey: ["vocab"] });
     },
   });
 
@@ -187,18 +225,6 @@ export default function ReaderPage() {
       setSelectionMenu(null);
       window.getSelection()?.removeAllRanges();
       setActivePanel("highlights");
-    },
-  });
-
-  const saveProgressMutation = useMutation({
-    mutationFn: () =>
-      upsertReadingProgress({
-        article_id: articleId,
-        progress_percent: progressPercent,
-        last_position: `manual:${progressPercent}`,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["progress", articleId] });
     },
   });
 
@@ -260,6 +286,9 @@ export default function ReaderPage() {
         source_article_id: articleId,
         source_sentence: latestAi?.sentence ?? item.surface,
       }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["vocab"] });
+    },
     onSettled: () => {
       setAddingSuggestedKey(null);
     },
@@ -275,6 +304,10 @@ export default function ReaderPage() {
     currentPageIndex,
     blocksPerPage: READER_BLOCKS_PER_PAGE,
   });
+  const progressPercent =
+    articleQuery.data && totalReaderPages > 0 ? Math.min(100, ((currentReaderPage + 1) / totalReaderPages) * 100) : 0;
+  const progressPercentForPage = (pageIndex: number) =>
+    articleQuery.data && totalReaderPages > 0 ? Math.min(100, ((pageIndex + 1) / totalReaderPages) * 100) : 0;
   const currentPageBlocks = articleBlocks;
   const pageBlockStart = currentPageBlocks.length === 0 ? 0 : pageBlockOffset + 1;
   const pageBlockEnd = currentPageBlocks.length === 0 ? 0 : pageBlockOffset + currentPageBlocks.length;
@@ -290,13 +323,36 @@ export default function ReaderPage() {
   const showLevelEmptyHint =
     hasReadableCurrentPage && annotationSettled && !pageHasAnnotatableToken(articleBlocks, annotationLevel);
   const showPageLoading = articleQuery.isFetching && !articleQuery.isLoading && !hasReadableCurrentPage;
+  const selectedTokenKey = selectedToken ? vocabKeyForToken(selectedToken.token) : null;
+
+  const saveReadingProgress = (pageIndex: number) =>
+    upsertReadingProgress({
+      article_id: articleId,
+      progress_percent: progressPercentForPage(pageIndex),
+      last_position: formatReadingPosition(pageIndex),
+    });
+
+  const saveProgressMutation = useMutation({
+    mutationFn: () => saveReadingProgress(currentReaderPage),
+    onSuccess: (result) => {
+      queryClient.setQueryData(["progress", articleId], result);
+      setProgressSaveMessage("已保存");
+    },
+    onError: () => {
+      setProgressSaveMessage("保存失败，请重试");
+    },
+  });
 
   const goToReaderPage = (pageIndex: number) => {
+    const targetPage = Math.min(Math.max(pageIndex, 0), totalReaderPages - 1);
     setSelectedToken(null);
     setSelectionMenu(null);
     setSelectionError(null);
     window.getSelection()?.removeAllRanges();
-    setCurrentPageIndex(Math.min(Math.max(pageIndex, 0), totalReaderPages - 1));
+    setCurrentPageIndex(targetPage);
+    saveReadingProgress(targetPage)
+      .then((result) => queryClient.setQueryData(["progress", articleId], result))
+      .catch(() => undefined);
   };
 
   const goToPreviousPage = () => goToReaderPage(currentReaderPage - 1);
@@ -307,6 +363,33 @@ export default function ReaderPage() {
       setCurrentPageIndex(totalReaderPages - 1);
     }
   }, [currentPageIndex, totalReaderPages]);
+
+  // Restore the last-read page once, after the article (page count) and saved progress load.
+  useEffect(() => {
+    if (didRestorePositionRef.current || !articleQuery.data || progressQuery.isLoading) {
+      return;
+    }
+    const savedPage =
+      parseReadingPosition(progressQuery.data?.last_position ?? null) ??
+      pageFromProgressPercent(progressQuery.data?.progress_percent, totalReaderPages);
+    if (savedPage !== null && savedPage > 0) {
+      const target = Math.min(savedPage, Math.max(0, totalReaderPages - 1));
+      if (target !== currentPageIndex) {
+        setCurrentPageIndex(target);
+      }
+    }
+    didRestorePositionRef.current = true;
+  }, [articleQuery.data, progressQuery.data, progressQuery.isLoading, totalReaderPages, currentPageIndex]);
+
+  useEffect(() => {
+    if (!progressSaveMessage) {
+      return;
+    }
+    const handle = window.setTimeout(() => {
+      setProgressSaveMessage(null);
+    }, 2200);
+    return () => window.clearTimeout(handle);
+  }, [progressSaveMessage]);
 
   // Prefetch the next page so paging forward (and its annotations) feels instant.
   useEffect(() => {
@@ -401,6 +484,11 @@ export default function ReaderPage() {
     goToPreviousPage();
   };
 
+  const handleTokenSelect = (value: SelectedTokenState) => {
+    saveTokenVocabMutation.reset();
+    setSelectedToken(value);
+  };
+
   const activityItems: ReaderActivityItem[] = [
     {
       key: "library",
@@ -483,14 +571,14 @@ export default function ReaderPage() {
   ];
 
   return (
-    <section className="relative">
+    <section className="relative left-1/2 w-screen -ml-[50vw] px-4 sm:px-6 lg:px-8">
       <ReaderShell
         items={activityItems}
         panels={panelDefs}
         activePanel={activePanel}
         onSelectPanel={setActivePanel}
       >
-        <div className="mx-auto w-full max-w-3xl space-y-5">
+        <div className="mx-auto w-full max-w-[96rem] space-y-5">
       <header className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="space-y-1">
           <h1 className="text-2xl font-semibold">原文精读</h1>
@@ -525,6 +613,19 @@ export default function ReaderPage() {
             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-950 dark:bg-amber-950/40 dark:text-amber-200">N2</span>
             <span className="rounded bg-rose-100 px-1.5 py-0.5 text-rose-950 dark:bg-rose-950/40 dark:text-rose-200">N1</span>
           </div>
+          <button
+            type="button"
+            data-testid="furigana-toggle"
+            aria-pressed={furiganaVisible}
+            onClick={() => setFuriganaVisible(!furiganaVisible)}
+            className={`mt-1 inline-flex w-fit items-center gap-1 rounded-md border px-2.5 py-1 text-xs ${
+              furiganaVisible
+                ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-900/30 dark:text-brand-100"
+                : "border-stone-300 text-zinc-600 hover:bg-stone-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
+            }`}
+          >
+            振假名：{furiganaVisible ? "开" : "关"}
+          </button>
         </div>
       </header>
 
@@ -578,9 +679,9 @@ export default function ReaderPage() {
 
       <ProgressBar
         progressPercent={progressPercent}
-        onProgressChange={setProgressPercent}
-        onSave={() => saveProgressMutation.mutate()}
         isSaving={saveProgressMutation.isPending}
+        saveMessage={progressSaveMessage}
+        onSave={() => saveProgressMutation.mutate()}
       />
 
       {articleQuery.isLoading ? <p>加载文章中...</p> : null}
@@ -671,8 +772,9 @@ export default function ReaderPage() {
             <ReaderArticleView
               blocks={currentPageBlocks}
               annotationLevel={annotationLevel}
+              furiganaVisible={furiganaVisible}
               highlightsByBlock={highlightsByBlock}
-              onTokenSelect={setSelectedToken}
+              onTokenSelect={handleTokenSelect}
               onSelectionChange={(menu, error) => {
                 setSelectionMenu(menu);
                 setSelectionError(error);
@@ -694,6 +796,7 @@ export default function ReaderPage() {
         latestAi={latestAi}
         history={aiHistoryQuery.data}
         addingSuggestedKey={addingSuggestedKey}
+        savedKeys={savedVocabKeys}
         onAddSuggestedVocab={(item) => {
           const key = `${item.lemma}:${item.pos}`;
           setAddingSuggestedKey(key);
@@ -708,6 +811,11 @@ export default function ReaderPage() {
         lookupEntries={lookupEntries}
         isLookupLoading={lookupQuery.isLoading}
         isSavingVocab={saveTokenVocabMutation.isPending}
+        alreadySaved={
+          selectedTokenKey ? savedVocabKeys.has(selectedTokenKey) || recentlySavedTokenKey === selectedTokenKey : false
+        }
+        justSaved={selectedTokenKey ? recentlySavedTokenKey === selectedTokenKey : false}
+        saveError={saveTokenVocabMutation.isError ? "加入失败，请重试" : null}
         onClose={() => setSelectedToken(null)}
         onAddToVocab={() => saveTokenVocabMutation.mutate()}
       />
@@ -737,7 +845,10 @@ export default function ReaderPage() {
             frequency_band: "Unknown",
             source_article_id: articleId,
             source_sentence: selectionMenu.textQuote,
-          }).then(() => setSelectionMenu(null));
+          }).then(() => {
+            setSelectionMenu(null);
+            queryClient.invalidateQueries({ queryKey: ["vocab"] });
+          });
         }}
       />
     </section>

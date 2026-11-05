@@ -9,8 +9,18 @@ interface TokenPopupProps {
   lookupEntries: LookupEntry[];
   isLookupLoading: boolean;
   isSavingVocab: boolean;
+  alreadySaved?: boolean;
+  justSaved?: boolean;
+  saveError?: string | null;
   onClose: () => void;
   onAddToVocab: () => void;
+}
+
+function isDictionaryMiss(entry: LookupEntry | undefined): boolean {
+  if (!entry) {
+    return true;
+  }
+  return entry.primary_meaning === "No dictionary match" || entry.meanings.includes("No dictionary match");
 }
 
 export function TokenPopup({
@@ -18,6 +28,9 @@ export function TokenPopup({
   lookupEntries,
   isLookupLoading,
   isSavingVocab,
+  alreadySaved = false,
+  justSaved = false,
+  saveError = null,
   onClose,
   onAddToVocab,
 }: TokenPopupProps) {
@@ -26,11 +39,24 @@ export function TokenPopup({
   }
 
   const firstEntry = lookupEntries[0];
+  const hasDictionaryMatch = !isDictionaryMiss(firstEntry);
   const reading = firstEntry?.reading || selectedToken.token.reading || selectedToken.token.surface;
   const moreMeanings = firstEntry?.meanings?.slice(1) ?? [];
-  const partsOfSpeech = firstEntry?.pos?.join("、") || selectedToken.token.pos;
-  const jlpt = firstEntry?.jlpt_level ?? selectedToken.token.jlpt_level;
-  const frequency = firstEntry?.frequency_band ?? selectedToken.token.frequency_band;
+  const partsOfSpeech = hasDictionaryMatch ? firstEntry?.pos?.join("、") || selectedToken.token.pos : selectedToken.token.pos;
+  const jlpt = hasDictionaryMatch ? firstEntry?.jlpt_level ?? selectedToken.token.jlpt_level : selectedToken.token.jlpt_level;
+  const frequency = hasDictionaryMatch
+    ? firstEntry?.frequency_band ?? selectedToken.token.frequency_band
+    : selectedToken.token.frequency_band;
+  const meaningText = isLookupLoading
+    ? "查询中..."
+    : hasDictionaryMatch
+      ? firstEntry?.primary_meaning
+      : "词典暂未收录，先看原文标注信息";
+  const exampleSentence = firstEntry?.example_sentence || selectedToken.blockText;
+  const usageNote =
+    hasDictionaryMatch && firstEntry?.usage_note && firstEntry.usage_note !== "No usage note available."
+      ? firstEntry.usage_note
+      : `在当前句中作为「${partsOfSpeech}」出现，可结合例句和上下文理解。`;
 
   return (
     <div
@@ -56,9 +82,9 @@ export function TokenPopup({
       <div className="mt-3 rounded-md bg-zinc-50 p-3 dark:bg-zinc-800/40">
         <p className="text-xs font-medium text-zinc-500">中文意思</p>
         <p data-testid="token-popup-meaning" className="mt-1 text-base font-medium">
-          {isLookupLoading ? "查询中..." : firstEntry?.primary_meaning || "未找到释义"}
+          {meaningText}
         </p>
-        {moreMeanings.length > 0 ? (
+        {hasDictionaryMatch && moreMeanings.length > 0 ? (
           <p className="mt-1 text-xs text-zinc-600 dark:text-zinc-300">
             其他释义：{moreMeanings.slice(0, 3).join("；")}
           </p>
@@ -80,33 +106,40 @@ export function TokenPopup({
         </div>
       </div>
 
-      {firstEntry?.example_sentence ? (
+      {exampleSentence ? (
         <p className="mt-3 text-xs text-zinc-600 dark:text-zinc-300">
           <span className="font-medium">例：</span>
-          {firstEntry.example_sentence}
+          {exampleSentence}
         </p>
       ) : null}
-      {firstEntry?.usage_note ? (
-        <p className="mt-1 text-xs text-zinc-500">
-          <span className="font-medium">用法：</span>
-          {firstEntry.usage_note}
-        </p>
-      ) : null}
+      <p className="mt-1 text-xs text-zinc-500">
+        <span className="font-medium">用法：</span>
+        {usageNote}
+      </p>
 
       <button
         type="button"
         data-testid="token-popup-add-vocab"
         className="mt-4 w-full rounded-md bg-brand-500 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-60"
         onClick={onAddToVocab}
-        disabled={isSavingVocab}
+        disabled={isSavingVocab || alreadySaved}
       >
-        {isSavingVocab ? "加入中..." : "加入生词本"}
+        {justSaved ? "已加入" : alreadySaved ? "已收录" : isSavingVocab ? "加入中..." : "加入生词本"}
       </button>
-      <p className="mt-1 text-center text-[11px] text-zinc-400">
-        加入后会出现在 Vocab 的「到期复习」里
+      <p
+        data-testid="token-popup-vocab-feedback"
+        className={`mt-1 text-center text-[11px] ${saveError ? "text-red-500" : "text-zinc-400"}`}
+      >
+        {saveError
+          ? saveError
+          : justSaved
+            ? "已加入生词本，会出现在 Vocab 的「到期复习」里"
+            : alreadySaved
+              ? "这个词已经在你的生词本里了"
+              : "加入后会出现在 Vocab 的「到期复习」里"}
       </p>
 
-      {lookupEntries.length > 1 ? (
+      {hasDictionaryMatch && lookupEntries.length > 1 ? (
         <details className="mt-3 text-xs text-zinc-500">
           <summary className="cursor-pointer">更多义项（{lookupEntries.length - 1}）</summary>
           <div className="mt-2 space-y-1">

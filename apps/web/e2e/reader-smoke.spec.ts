@@ -12,7 +12,11 @@ test("reader critical flow smoke", async ({ page }) => {
     source_type: "text",
     status: "ready",
     processing_error: null,
+    annotation_status: "ready",
+    annotation_error: null,
     created_at: "2026-03-17T00:00:00Z",
+    processed_block_count: 36,
+    total_block_count: 36,
     raw_content: "彼は来るはずだったのに。\n姿を見せた。",
     normalized_content: "彼は来るはずだったのに。\n姿を見せた。",
     blocks: [
@@ -69,7 +73,14 @@ test("reader critical flow smoke", async ({ page }) => {
 
   let highlights: Array<Record<string, unknown>> = [];
   let aiHistory: Array<Record<string, unknown>> = [];
-  let progress: Record<string, unknown> | null = null;
+  let savedVocab: Array<Record<string, unknown>> = [];
+  let progress: Record<string, unknown> | null = {
+    id: "77777777-7777-4777-8777-777777777777",
+    article_id: articleId,
+    progress_percent: 75,
+    last_position: null,
+    updated_at: "2026-03-17T00:00:00Z",
+  };
 
   await page.route(`${API_BASE}/**`, async (route) => {
     const request = route.request();
@@ -94,7 +105,24 @@ test("reader critical flow smoke", async ({ page }) => {
     }
 
     if (method === "GET" && url.pathname === "/articles") {
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify([{ id: articleId, title: article.title, source_type: "text", status: "ready", processing_error: null, created_at: article.created_at }]) });
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: articleId,
+            title: article.title,
+            source_type: "text",
+            status: "ready",
+            processing_error: null,
+            annotation_status: "ready",
+            annotation_error: null,
+            created_at: article.created_at,
+            processed_block_count: article.processed_block_count,
+            total_block_count: article.total_block_count,
+          },
+        ]),
+      });
     }
 
     if (method === "POST" && url.pathname === "/articles") {
@@ -106,7 +134,33 @@ test("reader critical flow smoke", async ({ page }) => {
     }
 
     if (method === "POST" && url.pathname === "/reader-data/lookup") {
+      const payload = await json();
+      if (payload.surface === "姿") {
+        return route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({
+            entries: [
+              {
+                lemma: "姿",
+                reading: "すがた",
+                pos: ["unknown"],
+                meanings: ["No dictionary match"],
+                primary_meaning: "No dictionary match",
+                example_sentence: "姿を見せた。",
+                usage_note: "No usage note available.",
+                jlpt_level: "Unknown",
+                frequency_band: "Unknown",
+              },
+            ],
+          }),
+        });
+      }
       return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(lookupEntries) });
+    }
+
+    if (method === "GET" && url.pathname === "/vocab") {
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(savedVocab) });
     }
 
     if (method === "GET" && url.pathname === "/reader-data/highlights") {
@@ -138,22 +192,28 @@ test("reader critical flow smoke", async ({ page }) => {
     }
 
     if (method === "POST" && url.pathname === "/reader-data/vocab") {
+      const payload = await json();
+      const created = {
+        id: `55555555-5555-4555-8555-${String(savedVocab.length + 1).padStart(12, "0")}`,
+        surface: payload.surface,
+        lemma: payload.lemma,
+        reading: payload.reading,
+        pos: payload.pos,
+        meaning_snapshot: payload.meaning_snapshot,
+        jlpt_level: payload.jlpt_level,
+        frequency_band: payload.frequency_band,
+        source_article_id: payload.source_article_id,
+        source_sentence: payload.source_sentence,
+        status: "new",
+        next_review_at: null,
+        review_count: 0,
+        created_at: "2026-03-17T00:00:00Z",
+      };
+      savedVocab = [created, ...savedVocab];
       return route.fulfill({
         status: 201,
         contentType: "application/json",
-        body: JSON.stringify({
-          id: "55555555-5555-4555-8555-555555555555",
-          surface: "来る",
-          lemma: "来る",
-          reading: "くる",
-          pos: "verb",
-          meaning_snapshot: { meanings: ["to come"] },
-          jlpt_level: "N5",
-          frequency_band: "top-1k",
-          source_article_id: articleId,
-          source_sentence: "彼は来るはずだったのに。",
-          created_at: "2026-03-17T00:00:00Z",
-        }),
+        body: JSON.stringify(created),
       });
     }
 
@@ -241,6 +301,7 @@ test("reader critical flow smoke", async ({ page }) => {
 
   await expect(page).toHaveURL(new RegExp(`/reader/${articleId}$`));
   await expect(page.getByTestId("reader-article-view")).toBeVisible();
+  await expect(page.getByTestId("reader-pagination-controls")).toContainText("第 2 / 2 页");
   await expect(page.getByTestId("annotation-controls")).toBeVisible();
   await expect(page.getByTestId("annotation-controls")).toContainText("N3/N2/N1");
   await expect(page.getByTestId("annotation-controls")).not.toContainText("未分级实词");
@@ -285,6 +346,13 @@ test("reader critical flow smoke", async ({ page }) => {
   await page
     .getByTestId("token-popup-add-vocab")
     .evaluate((element) => (element as HTMLButtonElement).click());
+  await expect(page.getByTestId("token-popup-vocab-feedback")).toContainText("已加入生词本");
+
+  await page.locator("[data-testid='reader-token']", { hasText: "姿" }).first().click();
+  await expect(page.getByTestId("token-popup")).toBeVisible();
+  await expect(page.getByTestId("token-popup")).not.toContainText("No dictionary match");
+  await expect(page.getByTestId("token-popup-meaning")).toContainText("词典暂未收录");
+  await expect(page.getByTestId("token-popup")).toContainText("在当前句中作为");
 
   await page.evaluate(() => {
     const tokens = Array.from(document.querySelectorAll<HTMLElement>("[data-testid='reader-token']"));
@@ -334,6 +402,7 @@ test("reader critical flow smoke", async ({ page }) => {
 
   await page.reload();
 
+  await expect(page.getByTestId("reader-pagination-controls")).toContainText("第 2 / 2 页");
   await expect(page.getByTestId("highlight-list")).toContainText("来るはず");
   const tokenHighlighted = await page.locator("[data-testid='reader-token']", { hasText: "来る" }).first().evaluate((node) =>
     node.className.includes("bg-yellow")
