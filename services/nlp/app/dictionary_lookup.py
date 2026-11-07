@@ -63,7 +63,7 @@ class DictionaryLookup:
         self._sudachi = None
         if sudachi_dictionary is not None:
             try:
-                self._sudachi = sudachi_dictionary.Dictionary().create()
+                self._sudachi = sudachi_dictionary.Dictionary().tokenizer()
             except Exception as exc:  # noqa: BLE001
                 logger.warning("Sudachi tokenizer unavailable for lookup normalization: %s", exc)
 

@@ -27,3 +27,8 @@ services/nlp/data/jmdict.sqlite
 
 # OS
 .DS_Store
+
+# Local databases
+*.db
+*.sqlite
+!services/nlp/data/*.sqlite
