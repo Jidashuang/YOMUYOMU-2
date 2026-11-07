@@ -50,6 +50,8 @@ class ReaderLookupRequest(BaseModel):
     lemma: str = Field(min_length=1)
     reading: str | None = None
     context: str | None = None
+    # False：先快速返回中文释义，不等 Tatoeba 例句；前端随后再用 True 补全例句
+    include_example: bool = True
 
 
 class ReaderLookupEntry(BaseModel):

@@ -322,6 +322,8 @@ export interface LookupRequest {
 
 export interface ReaderLookupRequest extends LookupRequest {
   article_id: string;
+  /** false：先快速返回释义，不等例句；随后用 true 补全 */
+  include_example?: boolean;
 }
 
 export interface LookupEntry {

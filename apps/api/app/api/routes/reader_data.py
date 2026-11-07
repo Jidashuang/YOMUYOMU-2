@@ -256,6 +256,7 @@ def lookup_from_reader(
             meanings=explanation_meanings or first_entry.meanings,
             primary_meaning=explanation_meanings[0] if explanation_meanings else first_entry.primary_meaning,
             context=payload.context or "",
+            include_example=payload.include_example,
         )
         if explanation:
             parsed_entries[0] = first_entry.model_copy(update=explanation.model_dump())

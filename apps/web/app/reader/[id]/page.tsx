@@ -150,20 +150,33 @@ export default function ReaderPage() {
     [savedVocabQuery.data]
   );
 
-  const lookupQuery = useQuery({
-    queryKey: ["lookup", articleId, selectedToken?.token.surface, selectedToken?.token.lemma, selectedToken?.blockId],
-    queryFn: () =>
-      lookupWordInReader({
-        article_id: articleId,
-        surface: selectedToken?.token.surface ?? "",
-        lemma: selectedToken?.token.lemma || selectedToken?.token.surface || "",
-        reading: selectedToken?.token.reading ? katakanaToHiragana(selectedToken.token.reading) : "",
-        context: selectedToken?.blockText,
-      }),
-    enabled: Boolean(selectedToken) && hydrated && isAuthorized,
+  // 查词分两步：先快速拿到中文释义（不等 Tatoeba 例句），再在后台补全例句。
+  const lookupKeyBase = ["lookup", articleId, selectedToken?.token.surface, selectedToken?.token.lemma, selectedToken?.blockId];
+  const buildLookupRequest = (includeExample: boolean) => ({
+    article_id: articleId,
+    surface: selectedToken?.token.surface ?? "",
+    lemma: selectedToken?.token.lemma || selectedToken?.token.surface || "",
+    reading: selectedToken?.token.reading ? katakanaToHiragana(selectedToken.token.reading) : "",
+    context: selectedToken?.blockText,
+    include_example: includeExample,
+  });
+  const lookupEnabled = Boolean(selectedToken) && hydrated && isAuthorized;
+
+  const lookupFastQuery = useQuery({
+    queryKey: [...lookupKeyBase, "fast"],
+    queryFn: () => lookupWordInReader(buildLookupRequest(false)),
+    enabled: lookupEnabled,
+  });
+  const lookupFullQuery = useQuery({
+    queryKey: [...lookupKeyBase, "full"],
+    queryFn: () => lookupWordInReader(buildLookupRequest(true)),
+    enabled: lookupEnabled && (lookupFastQuery.isSuccess || lookupFastQuery.isError),
   });
 
-  const lookupEntries = useMemo(() => lookupQuery.data?.entries ?? [], [lookupQuery.data]);
+  const lookupEntries = useMemo(
+    () => lookupFullQuery.data?.entries ?? lookupFastQuery.data?.entries ?? [],
+    [lookupFullQuery.data, lookupFastQuery.data]
+  );
   const firstEntry = useMemo(() => lookupEntries[0], [lookupEntries]);
 
   const highlightsByBlock = useMemo(() => {
@@ -829,7 +842,7 @@ export default function ReaderPage() {
       <TokenPopup
         selectedToken={selectedToken}
         lookupEntries={lookupEntries}
-        isLookupLoading={lookupQuery.isLoading}
+        isLookupLoading={lookupFastQuery.isLoading}
         isSavingVocab={saveTokenVocabMutation.isPending}
         alreadySaved={
           selectedTokenKey ? savedVocabKeys.has(selectedTokenKey) || recentlySavedTokenKey === selectedTokenKey : false

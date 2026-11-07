@@ -340,6 +340,7 @@ def _translated_fallback(
     meanings: list[str],
     primary_meaning: str,
     timeout_seconds: float,
+    include_example: bool = True,
 ) -> WordExplanation | None:
     meaning_zh = _translate_jmdict_meaning(
         meanings=meanings,
@@ -349,10 +350,14 @@ def _translated_fallback(
     if not meaning_zh:
         return None
 
-    example = _fetch_tatoeba_example(
-        surface=surface,
-        lemma=lemma,
-        timeout_seconds=timeout_seconds,
+    example = (
+        _fetch_tatoeba_example(
+            surface=surface,
+            lemma=lemma,
+            timeout_seconds=timeout_seconds,
+        )
+        if include_example
+        else None
     )
     example_ja, example_zh, example_url = example or ("", "", "")
     return WordExplanation(
@@ -374,13 +379,21 @@ def generate_word_explanation(
     meanings: list[str],
     primary_meaning: str,
     context: str,
+    include_example: bool = True,
 ) -> WordExplanation | None:
     settings = get_settings()
 
     key = _cache_key(surface, lemma, primary_meaning, context)
+    # 完整结果（含例句）优先；快速模式的结果单独缓存，不会冒充完整结果
     cached = _load_cached(key)
     if cached:
         return cached
+    save_key = key
+    if not include_example:
+        save_key = f"{key}:fast"
+        cached = _load_cached(save_key)
+        if cached:
+            return cached
 
     explanation = _fetch_wiktionary(
         surface=surface,
@@ -450,9 +463,10 @@ def generate_word_explanation(
             meanings=meanings,
             primary_meaning=primary_meaning,
             timeout_seconds=settings.openai_timeout_seconds,
+            include_example=include_example,
         )
     if explanation is None:
         return None
 
-    _save_cached(key, explanation)
+    _save_cached(save_key, explanation)
     return explanation

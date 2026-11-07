@@ -215,3 +215,44 @@ def test_tatoeba_request_timeout_never_exceeds_remaining_budget(monkeypatch) -> 
     word_explanation_service._fetch_tatoeba_example(surface="撮影", lemma="撮影", timeout_seconds=30)
 
     assert seen and all(t <= word_explanation_service.TATOEBA_BUDGET_SECONDS for t in seen)
+
+
+def _fast_mode_settings():
+    return SimpleNamespace(
+        llm_provider="openai",
+        openai_api_key=None,
+        openai_model="gpt-test",
+        openai_timeout_seconds=30,
+        ai_cache_ttl_seconds=60,
+    )
+
+
+def test_fast_lookup_skips_tatoeba_and_does_not_poison_full_cache(monkeypatch) -> None:
+    store: dict[str, object] = {}
+    monkeypatch.setattr(word_explanation_service, "get_settings", _fast_mode_settings)
+    monkeypatch.setattr(word_explanation_service, "_load_cached", lambda key: store.get(key))
+    monkeypatch.setattr(word_explanation_service, "_save_cached", lambda key, value: store.__setitem__(key, value))
+
+    urls: list[str] = []
+
+    def fake_get(url, *args, **kwargs):
+        urls.append(url)
+        if "wiktionary" in url:
+            return FakeResponse({"parse": {"text": "<h2>汉语</h2>"}})
+        raise AssertionError("tatoeba must not be called in fast mode")
+
+    monkeypatch.setattr(word_explanation_service.httpx, "get", fake_get)
+    monkeypatch.setattr(
+        word_explanation_service.httpx, "post", lambda *a, **k: FakeResponse({"translation": "摄影"})
+    )
+
+    kwargs = dict(
+        surface="撮影", lemma="撮影", reading="さつえい", pos=["noun"],
+        meanings=["photography"], primary_meaning="photography", context="撮影する",
+    )
+    fast = word_explanation_service.generate_word_explanation(**kwargs, include_example=False)
+    assert fast is not None and fast.meaning_zh == "摄影" and fast.example_ja == ""
+    assert not any("tatoeba" in u for u in urls)
+    # 快速结果只写入 :fast 缓存，完整缓存键保持为空，之后的完整查询仍会去取例句
+    assert any(k.endswith(":fast") for k in store)
+    assert not any(not k.endswith(":fast") for k in store)
