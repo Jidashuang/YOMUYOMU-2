@@ -10,8 +10,8 @@ import { Button } from "@yomuyomu/ui";
 export default function LoginPage() {
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
-  const [email, setEmail] = useState("demo@example.com");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [clientError, setClientError] = useState("");
   const passwordRuleMessage = "密码至少 8 个字符，最多 128 个字符。";
@@ -32,7 +32,7 @@ export default function LoginPage() {
   return (
     <div className="mx-auto max-w-md rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
       <h1 className="text-xl font-semibold">{mode === "login" ? "登录" : "注册"}</h1>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">Phase 1 使用 email + password + JWT。</p>
+      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{mode === "login" ? "登录后继续阅读，你的书架和生词会保存在账号里。" : "用邮箱创建账号，保存你的书架、生词和阅读进度。"}</p>
 
       <form
         className="mt-6 space-y-4"

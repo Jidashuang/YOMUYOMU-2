@@ -28,6 +28,10 @@ function ProviderFooter({
   fromCache: boolean;
   errorType?: string | null;
 }) {
+  // 模型、prompt 版本、缓存状态只在开发环境显示，线上用户不需要看到
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
   return (
     <p className="mt-3 text-[11px] text-zinc-400">
       调试信息 · {provider} / {model} / prompt {promptVersion} / {fromCache ? "命中缓存" : "新生成"}
