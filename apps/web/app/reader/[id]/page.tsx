@@ -583,10 +583,11 @@ export default function ReaderPage() {
         onSelectPanel={setActivePanel}
       >
         <div className="mx-auto w-full max-w-[96rem] space-y-5">
-      <header className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 lg:grid-cols-[minmax(0,1fr)_auto]">
+      <header className="grid gap-3 rounded-lg border border-stone-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">原文精读</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+          <h1 className="text-xl font-semibold sm:text-2xl">原文精读</h1>
+          {/* 手机上首屏要留给正文，说明文字只在 sm 以上显示 */}
+          <p className="hidden text-sm text-zinc-600 dark:text-zinc-300 sm:block">
             读完它，卡住时点词或选句让 AI 中文拆解，再把对你有用的词加进生词本。
           </p>
         </div>
@@ -609,9 +610,10 @@ export default function ReaderPage() {
               </button>
             ))}
           </div>
-          <p className="text-xs text-zinc-500">
+          <p className="hidden text-xs text-zinc-500 sm:block">
             当前显示：{ANNOTATION_LEVELS.find((item) => item.value === annotationLevel)?.description}
           </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <div className="flex gap-2 text-[11px] text-zinc-500" aria-label="JLPT color legend">
             <span className="rounded bg-sky-100 px-1.5 py-0.5 text-sky-950 dark:bg-sky-950/40 dark:text-sky-200">N3</span>
             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-950 dark:bg-amber-950/40 dark:text-amber-200">N2</span>
@@ -622,7 +624,7 @@ export default function ReaderPage() {
             data-testid="furigana-toggle"
             aria-pressed={furiganaVisible}
             onClick={() => setFuriganaVisible(!furiganaVisible)}
-            className={`mt-1 inline-flex w-fit items-center gap-1 rounded-md border px-2.5 py-1 text-xs ${
+            className={`inline-flex w-fit items-center gap-1 rounded-md border px-2.5 py-1 text-xs ${
               furiganaVisible
                 ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-900/30 dark:text-brand-100"
                 : "border-stone-300 text-zinc-600 hover:bg-stone-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
@@ -630,6 +632,7 @@ export default function ReaderPage() {
           >
             振假名：{furiganaVisible ? "开" : "关"}
           </button>
+          </div>
         </div>
       </header>
 
@@ -791,7 +794,9 @@ export default function ReaderPage() {
 
             <aside
               data-testid="reader-ai-companion"
-              className="order-first min-w-0 xl:order-none xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto"
+              className={`${
+                latestAi || createAiMutation.isPending ? "order-first" : "order-last"
+              } min-w-0 xl:order-none xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto`}
             >
               <ExplanationPanel
                 latestAi={latestAi}

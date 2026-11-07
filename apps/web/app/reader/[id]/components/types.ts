@@ -17,6 +17,8 @@ export interface SelectionMenuState {
   textQuote: string;
   x: number;
   y: number;
+  /** 选区顶边（视口坐标），下方空间不足时把菜单翻到上方 */
+  anchorTop?: number;
 }
 
 export interface SentenceContext {

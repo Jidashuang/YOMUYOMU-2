@@ -114,6 +114,7 @@ export function ReaderArticleView({
         textQuote,
         x: rect.left + rect.width / 2,
         y: rect.bottom + 8,
+        anchorTop: rect.top - 8,
       },
       null
     );

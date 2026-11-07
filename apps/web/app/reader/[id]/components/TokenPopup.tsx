@@ -5,7 +5,7 @@ import type { CSSProperties } from "react";
 import type { LookupEntry } from "@yomuyomu/shared-types";
 
 import { frequencyLabel, jlptLabel, posLabel } from "../../../../lib/lookup-labels";
-import { computePopupPlacement, POPUP_WIDTH } from "../../../../lib/popup-placement";
+import { computePopupPlacement } from "../../../../lib/popup-placement";
 import type { SelectedTokenState } from "./types";
 
 function useViewportSize() {
@@ -71,8 +71,8 @@ export function TokenPopup({
     placement.mode === "sheet"
       ? {}
       : placement.mode === "below"
-        ? { left: placement.left, top: placement.top, maxHeight: placement.maxHeight, width: POPUP_WIDTH }
-        : { left: placement.left, bottom: placement.bottom, maxHeight: placement.maxHeight, width: POPUP_WIDTH };
+        ? { left: placement.left, top: placement.top, maxHeight: placement.maxHeight, width: placement.width }
+        : { left: placement.left, bottom: placement.bottom, maxHeight: placement.maxHeight, width: placement.width };
 
   const firstEntry = lookupEntries[0];
   const hasDictionaryMatch = !isDictionaryMiss(firstEntry);

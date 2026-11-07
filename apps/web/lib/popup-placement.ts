@@ -10,8 +10,8 @@ const PREFERRED_MIN_HEIGHT = 320;
 
 export type PopupPlacement =
   | { mode: "sheet" }
-  | { mode: "below"; left: number; top: number; maxHeight: number }
-  | { mode: "above"; left: number; bottom: number; maxHeight: number };
+  | { mode: "below"; left: number; top: number; maxHeight: number; width: number }
+  | { mode: "above"; left: number; bottom: number; maxHeight: number; width: number };
 
 interface PlacementInput {
   /** 被点词水平中心（视口坐标） */
@@ -22,24 +22,31 @@ interface PlacementInput {
   anchorTop?: number;
   viewportWidth: number;
   viewportHeight: number;
+  /** 弹层宽度，缺省为查词弹窗宽度 */
+  width?: number;
+  /** 下方空间至少多少才优先放在下方，缺省按查词弹窗（内容较高）取值 */
+  preferredMinHeight?: number;
+  /** 窄屏是否改为底部抽屉；小浮层（如划线菜单）传 false，只做边缘限制 */
+  allowSheet?: boolean;
 }
 
 export function computePopupPlacement(input: PlacementInput): PopupPlacement {
   const { x, y, viewportWidth, viewportHeight } = input;
 
-  if (viewportWidth < SHEET_BREAKPOINT) {
+  if (viewportWidth < SHEET_BREAKPOINT && input.allowSheet !== false) {
     return { mode: "sheet" };
   }
 
-  const width = Math.min(POPUP_WIDTH, viewportWidth - POPUP_MARGIN * 2);
+  const width = Math.min(input.width ?? POPUP_WIDTH, viewportWidth - POPUP_MARGIN * 2);
   const left = Math.min(Math.max(x - width / 2, POPUP_MARGIN), viewportWidth - width - POPUP_MARGIN);
 
   const anchorTop = input.anchorTop ?? y - 40;
   const spaceBelow = viewportHeight - y - POPUP_MARGIN;
   const spaceAbove = anchorTop - POPUP_MARGIN;
 
-  if (spaceBelow >= PREFERRED_MIN_HEIGHT || spaceBelow >= spaceAbove) {
-    return { mode: "below", left, top: y, maxHeight: Math.max(spaceBelow, 160) };
+  const minHeight = input.preferredMinHeight ?? PREFERRED_MIN_HEIGHT;
+  if (spaceBelow >= minHeight || spaceBelow >= spaceAbove) {
+    return { mode: "below", left, top: y, maxHeight: Math.max(spaceBelow, 160), width };
   }
-  return { mode: "above", left, bottom: viewportHeight - anchorTop, maxHeight: Math.max(spaceAbove, 160) };
+  return { mode: "above", left, bottom: viewportHeight - anchorTop, maxHeight: Math.max(spaceAbove, 160), width };
 }
