@@ -20,10 +20,12 @@ test.describe("public pages positioning", () => {
     await expect(importCta).toBeVisible();
     await expect(importCta).toHaveAttribute("href", "/library");
 
-    await expect(page.getByText("Genbun · 日文原文阅读工作台")).toBeVisible();
+    // The home page shows the reader in action: an annotated passage with a word popup.
+    await expect(page.getByRole("img", { name: /阅读器示例/ })).toBeVisible();
 
-    // Navigating from home to pricing should not require authentication.
-    await page.getByTestId("home-cta-pricing").click();
+    // Pricing is reachable from the top nav without authentication (not pushed from the hero).
+    await expect(page.getByTestId("home-cta-pricing")).toHaveCount(0);
+    await page.getByTestId("top-nav-pricing").click();
     await expect(page).toHaveURL(/\/pricing$/);
   });
 
