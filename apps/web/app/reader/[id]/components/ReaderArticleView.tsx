@@ -150,6 +150,7 @@ export function ReaderArticleView({
                           blockText: block.text,
                           x: rect.left + rect.width / 2,
                           y: rect.bottom + 8,
+                          anchorTop: rect.top - 8,
                         });
                       }}
                     >

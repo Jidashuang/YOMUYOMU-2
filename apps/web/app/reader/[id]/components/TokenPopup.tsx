@@ -1,8 +1,27 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import type { LookupEntry } from "@yomuyomu/shared-types";
 
+import { frequencyLabel, jlptLabel, posLabel } from "../../../../lib/lookup-labels";
+import { computePopupPlacement, POPUP_WIDTH } from "../../../../lib/popup-placement";
 import type { SelectedTokenState } from "./types";
+
+function useViewportSize() {
+  const [size, setSize] = useState(() =>
+    typeof window === "undefined"
+      ? { width: 1024, height: 768 }
+      : { width: window.innerWidth, height: window.innerHeight }
+  );
+  useEffect(() => {
+    const update = () => setSize({ width: window.innerWidth, height: window.innerHeight });
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return size;
+}
 
 interface TokenPopupProps {
   selectedToken: SelectedTokenState | null;
@@ -34,15 +53,34 @@ export function TokenPopup({
   onClose,
   onAddToVocab,
 }: TokenPopupProps) {
+  const viewport = useViewportSize();
+
   if (!selectedToken) {
     return null;
   }
+
+  const placement = computePopupPlacement({
+    x: selectedToken.x,
+    y: selectedToken.y,
+    anchorTop: selectedToken.anchorTop,
+    viewportWidth: viewport.width,
+    viewportHeight: viewport.height,
+  });
+  const isSheet = placement.mode === "sheet";
+  const placementStyle: CSSProperties =
+    placement.mode === "sheet"
+      ? {}
+      : placement.mode === "below"
+        ? { left: placement.left, top: placement.top, maxHeight: placement.maxHeight, width: POPUP_WIDTH }
+        : { left: placement.left, bottom: placement.bottom, maxHeight: placement.maxHeight, width: POPUP_WIDTH };
 
   const firstEntry = lookupEntries[0];
   const hasDictionaryMatch = !isDictionaryMiss(firstEntry);
   const reading = firstEntry?.reading || selectedToken.token.reading || selectedToken.token.surface;
   const moreMeanings = firstEntry?.meanings?.slice(1) ?? [];
-  const partsOfSpeech = hasDictionaryMatch ? firstEntry?.pos?.join("、") || selectedToken.token.pos : selectedToken.token.pos;
+  const partsOfSpeech = posLabel(
+    hasDictionaryMatch && firstEntry?.pos?.length ? firstEntry.pos : selectedToken.token.pos
+  );
   const jlpt = hasDictionaryMatch ? firstEntry?.jlpt_level ?? selectedToken.token.jlpt_level : selectedToken.token.jlpt_level;
   const frequency = hasDictionaryMatch
     ? firstEntry?.frequency_band ?? selectedToken.token.frequency_band
@@ -66,8 +104,11 @@ export function TokenPopup({
   return (
     <div
       data-testid="token-popup"
-      className="fixed z-20 w-[340px] max-w-[calc(100vw-16px)] -translate-x-1/2 rounded-xl border border-zinc-200 bg-white p-4 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
-      style={{ left: selectedToken.x, top: selectedToken.y }}
+      data-placement={placement.mode}
+      className={`fixed overflow-y-auto overscroll-contain rounded-xl border border-zinc-200 bg-white p-4 shadow-lg dark:border-zinc-700 dark:bg-zinc-900 ${
+        isSheet ? "inset-x-2 bottom-16 z-50 max-h-[70dvh]" : "z-20"
+      }`}
+      style={placementStyle}
     >
       <div className="flex items-baseline justify-between gap-3">
         <div>
@@ -103,11 +144,11 @@ export function TokenPopup({
         </div>
         <div>
           <p>JLPT</p>
-          <p className="mt-0.5 font-medium text-zinc-700 dark:text-zinc-200">{jlpt}</p>
+          <p className="mt-0.5 font-medium text-zinc-700 dark:text-zinc-200">{jlptLabel(jlpt)}</p>
         </div>
         <div>
           <p>频度</p>
-          <p className="mt-0.5 font-medium text-zinc-700 dark:text-zinc-200">{frequency}</p>
+          <p className="mt-0.5 font-medium text-zinc-700 dark:text-zinc-200">{frequencyLabel(frequency)}</p>
         </div>
       </div>
 
@@ -169,7 +210,7 @@ export function TokenPopup({
               <div key={index} className="rounded border border-zinc-200 p-2 dark:border-zinc-700">
                 <p className="text-zinc-700 dark:text-zinc-200">
                   {entry.primary_meaning}
-                  <span className="text-zinc-500"> · {entry.reading} · {entry.pos.join("、")}</span>
+                  <span className="text-zinc-500"> · {entry.reading} · {posLabel(entry.pos)}</span>
                 </p>
                 {entry.usage_note ? <p>{entry.usage_note}</p> : null}
               </div>

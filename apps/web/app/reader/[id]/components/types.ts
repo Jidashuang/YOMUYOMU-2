@@ -6,6 +6,8 @@ export interface SelectedTokenState {
   blockText: string;
   x: number;
   y: number;
+  /** 被点词顶边（视口坐标），用于下方空间不足时把弹窗翻到上方 */
+  anchorTop?: number;
 }
 
 export interface SelectionMenuState {
