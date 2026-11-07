@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import quote
@@ -12,6 +13,9 @@ from pydantic import BaseModel, Field
 
 from app.core.cache import get_redis_client
 from app.core.config import get_settings
+
+# Tatoeba 例句是可选内容，整个例句查询的总时间上限（秒）
+TATOEBA_BUDGET_SECONDS = 1.5
 
 
 class WordExplanation(BaseModel):
@@ -274,7 +278,12 @@ def _fetch_tatoeba_example(
 ) -> tuple[str, str, str] | None:
     terms = list(dict.fromkeys([surface, lemma]))
     queries = list(dict.fromkeys([f"={term}" for term in terms] + terms))
+    # 例句只是锦上添花：整个例句查询最多占用 TATOEBA_BUDGET_SECONDS，避免拖慢查词弹窗
+    deadline = time.monotonic() + TATOEBA_BUDGET_SECONDS
     for query in queries:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0.2:
+            break
         term = query.removeprefix("=")
         try:
             response = httpx.get(
@@ -287,7 +296,7 @@ def _fetch_tatoeba_example(
                     "limit": 5,
                 },
                 headers={"User-Agent": "Yomuyomu/0.1 dictionary lookup"},
-                timeout=min(timeout_seconds, 6.0),
+                timeout=min(timeout_seconds, remaining),
             )
             response.raise_for_status()
             candidates: list[tuple[int, str, str, str]] = []

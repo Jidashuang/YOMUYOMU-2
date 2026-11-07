@@ -182,3 +182,36 @@ def test_generate_word_explanation_translates_jmdict_and_uses_tatoeba(monkeypatc
     assert result.example_ja == "写真撮影禁止。"
     assert result.example_zh == "禁止拍照。"
     assert "Tatoeba" in result.source_name
+
+
+def test_tatoeba_example_lookup_stops_when_time_budget_is_spent(monkeypatch) -> None:
+    """Tatoeba 例句是可选的：预算耗尽后不再发请求，避免拖慢查词弹窗。"""
+    calls: list[dict] = []
+
+    def fake_get(url, *args, **kwargs):
+        calls.append(kwargs)
+        return FakeResponse({"data": []})
+
+    # 第一次读取时间用于设定截止时间，之后的读取都已超过预算
+    ticks = iter([0.0, 100.0, 100.0, 100.0, 100.0])
+    monkeypatch.setattr(word_explanation_service.time, "monotonic", lambda: next(ticks))
+    monkeypatch.setattr(word_explanation_service.httpx, "get", fake_get)
+
+    result = word_explanation_service._fetch_tatoeba_example(surface="撮影", lemma="撮影", timeout_seconds=30)
+
+    assert result is None
+    assert calls == []
+
+
+def test_tatoeba_request_timeout_never_exceeds_remaining_budget(monkeypatch) -> None:
+    seen: list[float] = []
+
+    def fake_get(url, *args, **kwargs):
+        seen.append(kwargs["timeout"])
+        return FakeResponse({"data": []})
+
+    monkeypatch.setattr(word_explanation_service.httpx, "get", fake_get)
+
+    word_explanation_service._fetch_tatoeba_example(surface="撮影", lemma="撮影", timeout_seconds=30)
+
+    assert seen and all(t <= word_explanation_service.TATOEBA_BUDGET_SECONDS for t in seen)
