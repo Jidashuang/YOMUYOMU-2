@@ -266,7 +266,7 @@ test.describe("library import flow as validation entry", () => {
     await page.getByTestId("login-password").fill("password123");
     await page.getByTestId("login-submit").click();
 
-    await expect(page.getByText("处理中 1/3")).toBeVisible();
+    await expect(page.getByText("解析中 1/3")).toBeVisible();
     await expect(page.getByText("处理失败")).toBeVisible();
     await expect(page.getByText("Invalid EPUB zip archive")).toBeVisible();
     await page
@@ -281,12 +281,13 @@ test.describe("library import flow as validation entry", () => {
       .getByRole("link", { name: "继续阅读" })
       .click();
     await expect(page).toHaveURL(new RegExp(`/reader/${articleId}$`));
-    await expect(page.getByText("整本 EPUB 正在继续处理：1/3")).toBeVisible();
+    await expect(page.getByTestId("reader-processing-banner")).toContainText("正在解析正文");
+    await expect(page.getByTestId("reader-processing-banner")).toContainText("正文已可阅读");
     await expect(page.getByTestId("reader-article-view")).toContainText("第一章");
   });
 
   test("valid EPUB upload opens reader while processing and later shows complete text", async ({ page }) => {
-    let getArticleCount = 0;
+    let processingStage: "empty" | "partial" | "ready" = "empty";
     let createdSourceType = "";
     let createdRawContent = "";
 
@@ -393,8 +394,7 @@ test.describe("library import flow as validation entry", () => {
       }
 
       if (method === "GET" && url.pathname === `/articles/${articleId}`) {
-        getArticleCount += 1;
-        const article = getArticleCount === 1 ? processingEmptyArticle : getArticleCount === 2 ? processingPartialArticle : readyArticle;
+        const article = processingStage === "empty" ? processingEmptyArticle : processingStage === "partial" ? processingPartialArticle : readyArticle;
         return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(article) });
       }
 
@@ -456,10 +456,12 @@ test.describe("library import flow as validation entry", () => {
     await expect(page).toHaveURL(new RegExp(`/reader/${articleId}$`));
     expect(createdSourceType).toBe("epub");
     expect(createdRawContent).toMatch(/^data:application\/epub\+zip;base64,/);
-    await expect(page.getByTestId("reader-processing-banner")).toContainText("整本 EPUB 正在继续处理：0");
+    await expect(page.getByTestId("reader-processing-banner")).toContainText("正在解析正文");
     await expect(page.getByText("正文还在生成中，稍后会自动显示。")).toBeVisible();
+    processingStage = "partial";
     await expect(page.getByTestId("reader-article-view")).toContainText("第一章", { timeout: 6000 });
-    await expect(page.getByTestId("reader-processing-banner")).toContainText("整本 EPUB 正在继续处理：1/2");
+    await expect(page.getByTestId("reader-processing-banner")).toContainText("正文已可阅读");
+    processingStage = "ready";
     await expect(page.getByTestId("reader-article-view")).toContainText("第二章", { timeout: 6000 });
     await expect(page.getByTestId("reader-processing-banner")).not.toBeVisible();
     await expect(page.getByTestId("reader-token").filter({ hasText: "第二章" })).toBeVisible();
