@@ -376,10 +376,11 @@ export default function ReaderPage() {
   const goToNextPage = () => goToReaderPage(currentReaderPage + 1);
 
   useEffect(() => {
-    if (currentPageIndex >= totalReaderPages) {
+    // An uncached page has no data yet; its temporary page count must not reset the selection.
+    if (articleQuery.data && currentPageIndex >= totalReaderPages) {
       setCurrentPageIndex(totalReaderPages - 1);
     }
-  }, [currentPageIndex, totalReaderPages]);
+  }, [articleQuery.data, currentPageIndex, totalReaderPages]);
 
   // Restore the last-read page once, after the article (page count) and saved progress load.
   useEffect(() => {
