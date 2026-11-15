@@ -14,15 +14,18 @@ import type { SelectedTokenState, SelectionMenuState } from "./types";
 
 export type { AnnotationLevel };
 
+// 阅读区的文字和色块跟随「阅读主题」(data-reader-theme)，而不是全局 dark 类：
+// 应用切到深色但阅读区仍是纸色/白色时，正文必须保持深色字，否则会在浅底上发灰看不清。
+// 中性词不设颜色，直接继承 .reader-surface 的 --reader-fg。
 const jlptClassMap: Record<JlptLevel, string> = {
-  N5: "text-zinc-900 dark:text-zinc-200",
-  N4: "text-zinc-900 dark:text-zinc-200",
-  N3: "bg-sky-100 text-sky-950 ring-1 ring-sky-200 dark:bg-sky-950/40 dark:text-sky-200 dark:ring-sky-900",
-  N2: "bg-amber-100 text-amber-950 ring-1 ring-amber-200 dark:bg-amber-950/40 dark:text-amber-200 dark:ring-amber-900",
-  N1: "bg-rose-100 text-rose-950 ring-1 ring-rose-200 dark:bg-rose-950/40 dark:text-rose-200 dark:ring-rose-900",
-  Unknown: "text-zinc-900 dark:text-zinc-200",
+  N5: "",
+  N4: "",
+  N3: "bg-sky-100 text-sky-950 ring-1 ring-sky-200 [[data-reader-theme=dark]_&]:bg-sky-950/40 [[data-reader-theme=dark]_&]:text-sky-200 [[data-reader-theme=dark]_&]:ring-sky-900",
+  N2: "bg-amber-100 text-amber-950 ring-1 ring-amber-200 [[data-reader-theme=dark]_&]:bg-amber-950/40 [[data-reader-theme=dark]_&]:text-amber-200 [[data-reader-theme=dark]_&]:ring-amber-900",
+  N1: "bg-rose-100 text-rose-950 ring-1 ring-rose-200 [[data-reader-theme=dark]_&]:bg-rose-950/40 [[data-reader-theme=dark]_&]:text-rose-200 [[data-reader-theme=dark]_&]:ring-rose-900",
+  Unknown: "",
 };
-const neutralTokenClass = "text-zinc-900 dark:text-zinc-200";
+const neutralTokenClass = "";
 
 function annotationClassForToken(token: ArticleToken, annotationLevel: AnnotationLevel) {
   if (shouldAnnotate(token.jlpt_level, annotationLevel)) {
@@ -141,7 +144,7 @@ export function ReaderArticleView({
                       data-token-start={token.start_offset}
                       data-token-end={token.end_offset}
                       className={`rounded-sm transition-colors select-text ${tokenClass} ${
-                        highlighted ? "bg-yellow-200/70 dark:bg-yellow-700/40" : ""
+                        highlighted ? "bg-yellow-200/70 [[data-reader-theme=dark]_&]:bg-yellow-700/40" : ""
                       }`}
                       onClick={(event) => {
                         const rect = event.currentTarget.getBoundingClientRect();
