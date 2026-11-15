@@ -38,7 +38,7 @@ scripts/dev-local.sh stop
 
 ## 3. 本轮做了什么
 
-已推送到 `origin/feat/positioning-validation-pivot`（`main` 没动）：
+已推送到 `origin/feat/positioning-validation-pivot`（`main` 没动），截至 `d6c20cf`：
 
 - `537c186` 查词弹窗不再越出屏幕；窄屏改底部抽屉；词性 / JLPT / 频度显示中文。
 - `af84fd7`、`15f7866` 查词提速：先出中文释义，例句后台补；例句查询最多 1.5 秒。未缓存的词释义约 1.3–1.5 秒（原来约 7 秒）。
@@ -47,14 +47,14 @@ scripts/dev-local.sh stop
 - `d6c20cf` 首页重做：带真实着色的阅读器示例，书架改四张卡片，去掉首页定价按钮。
 - `f407a44` 本地启动脚本、11-07 交接文档。
 
-**本轮还有一批改动在工作区里，没有提交**（提交命令被自动权限分类器拦了，需要用户决定）：
+另外四个提交在本文写成之后补上（**这些还没有推送**）：
 
-1. 阅读位置修复（`reader/[id]/page.tsx`）+ 新用例 `e2e/reader-position.spec.ts`：打开保存在第 2 页的文章时，不会在第 2 页数据加载期间被重置回第 1 页。
-2. e2e 隔离（`playwright.config.ts`、`next.config.ts` 的 `distDir`）和 `e2e/library-import.spec.ts` 对新文案的适配。
-3. lint 恢复（`apps/web/eslint.config.mjs`、`apps/web/package.json`、`package-lock.json`）。
-4. 深色模式修复（`ReaderArticleView.tsx`）：应用切到深色但阅读区仍是纸色 / 白色时，正文字发灰、对比度很差；现在阅读区的文字和色块跟随"阅读主题"，不再跟全局深色。实测对比度：应用深色 + 纸色阅读区，正文 11.1:1；深色 + 深色，正文 14:1。
+- `de22251` 阅读位置修复：打开保存在第 2 页的文章时，不会在第 2 页数据加载期间被重置回第 1 页；附新用例 `e2e/reader-position.spec.ts`。
+- `5cd3c76` e2e 隔离（`playwright.config.ts`、`next.config.ts` 的 `distDir`）和 `library-import.spec.ts` 对新文案的适配。
+- `20da402` lint 恢复（ESLint flat config）。
+- `567b997` 深色模式修复 + 本文。应用切到深色但阅读区仍是纸色 / 白色时，正文字发灰、对比度很差；现在阅读区的文字和色块跟随"阅读主题"，不再跟全局深色。实测对比度：应用深色 + 纸色阅读区，正文 11.1:1；深色 + 深色，正文 14:1。
 
-其中 1–3 是 11 月 9 日另一次会话留下的未提交工作，本次只做了验证（e2e 全绿、lint 能跑），没有重写。4 是本次新做的。`next-env.d.ts` 由 Next 自动生成，不要提交。
+前三个中的前两个和 lint 是 11 月 9 日另一次会话留下的未提交工作，本次只做了验证（e2e 全绿、lint 能跑），没有重写；深色模式修复是本次新做的。工作区里只剩 `next-env.d.ts`，由 Next 自动生成，不要提交。
 
 ## 4. 哪些功能稳定，哪些不稳定
 
@@ -122,7 +122,7 @@ scripts/dev-local.sh stop
 
 ## 6. 给接手 agent 的注意事项
 
-- **先看工作区。** 本文写成时有上面第 3 节列的未提交改动，开始前先 `git status`，不要覆盖，也不要把别人留下的改动当成自己的。
+- **先看工作区。** 开始前先 `git status`，不要覆盖别人留下的未提交改动。上一次就发现过 6 天前另一次会话留下的未提交文件。
 - **只在 `~/Developer/yomuyomu` 里开发。** 旧目录 `~/Documents/YOMUYOMU APP（iOS）/yomuyomu` 不要动。父目录 CLAUDE.md 里的 Blitz / React Native / Teenybase 内容是模板残留，和本工程无关。
 - **改 UI 要实际打开浏览器验证**，至少看桌面和 375 宽两种宽度；动了深色相关样式，要同时试"应用深色 / 阅读区纸色"这种混合组合（本轮就是在这里发现的问题）。
 - **改查词接口时同步改三处：** Python schema（`apps/api/app/schemas/reader_data.py`）、`packages/shared-types/src/contracts.ts`、前端 `lib/api.ts`；`e2e` 里有对 `/reader-data/lookup` 的 mock。
