@@ -450,8 +450,8 @@ export default function ReaderPage() {
   if (!isAuthorized) {
     return (
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold">Reader</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">请先登录后访问 Reader。</p>
+        <h1 className="text-2xl font-semibold">阅读器</h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">请先登录，再打开这篇文章。</p>
         <Link href="/login" className="inline-flex rounded-md bg-brand-500 px-4 py-2 text-white hover:bg-brand-700">
           去登录
         </Link>

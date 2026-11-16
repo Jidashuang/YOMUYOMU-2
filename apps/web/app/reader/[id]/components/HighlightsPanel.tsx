@@ -34,7 +34,7 @@ export function HighlightsPanel({ highlights, isLoading, onUpdateNote }: Highlig
               <input
                 className="w-full rounded border border-zinc-300 bg-transparent px-2 py-1 text-sm text-zinc-800 placeholder:text-zinc-400 focus:border-brand-500 focus:outline-none dark:border-zinc-700 dark:text-zinc-100"
                 defaultValue={item.note ?? ""}
-                placeholder="note"
+                placeholder="写点笔记…"
                 onBlur={(event) => {
                   onUpdateNote(item.id, event.target.value);
                 }}

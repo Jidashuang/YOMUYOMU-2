@@ -47,18 +47,20 @@ export default function LoginPage() {
         }}
       >
         <label className="block text-sm">
-          Email
+          邮箱
           <input
             data-testid="login-email"
             className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
             type="email"
+            autoComplete="email"
+            required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
         </label>
 
         <label className="block text-sm">
-          Password
+          密码
           <input
             data-testid="login-password"
             className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
