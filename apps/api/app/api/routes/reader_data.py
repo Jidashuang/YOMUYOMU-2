@@ -7,6 +7,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db_session
+from app.core.config import get_settings
+from app.core.rate_limit import enforce_rate_limit
 from app.models.entities import Article, ArticleBlock, Highlight, ReadingProgress, User
 from app.schemas.reader_data import (
     HighlightCreateRequest,
@@ -228,6 +230,12 @@ def lookup_from_reader(
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ) -> ReaderLookupResponse:
+    enforce_rate_limit(
+        f"lookup:user:{current_user.id}",
+        limit=get_settings().lookup_per_minute_limit,
+        window_seconds=60,
+        message="查词太快了，请稍等一分钟再试。",
+    )
     article = db.scalar(select(Article).where(Article.id == payload.article_id, Article.user_id == current_user.id))
     if article is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")

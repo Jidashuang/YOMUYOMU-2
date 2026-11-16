@@ -35,6 +35,15 @@ class Settings(BaseSettings):
     ai_prompt_version: str = "v2"
     ai_cache_ttl_seconds: int = 86400
 
+    # 防刷与成本保护。数字都可以用同名环境变量覆盖（如 AI_DAILY_LIMIT=50）。
+    ai_daily_limit: int = 30  # 每个账号 24 小时内可新生成的 AI 解释次数（命中缓存不计）
+    ai_per_minute_limit: int = 10
+    lookup_per_minute_limit: int = 120
+    login_per_15min_limit: int = 10
+    register_per_hour_limit: int = 5
+    article_create_per_hour_limit: int = 30
+    max_text_chars: int = 1_000_000  # 粘贴文本上限；书架里最长的《こころ》约 48 万字
+
     @field_validator("api_cors_origins")
     @classmethod
     def normalize_origins(cls, value: str) -> str:

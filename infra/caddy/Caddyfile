@@ -1,6 +1,11 @@
 {$YOMUYOMU_SITE_ADDRESS::80} {
   encode zstd gzip
 
+  # 单个请求最大 30MB：20MB 的 EPUB 转成 base64 后约 27MB，再大的直接拒绝
+  request_body {
+    max_size 30MB
+  }
+
   handle_path /api/* {
     reverse_proxy api:8000
   }

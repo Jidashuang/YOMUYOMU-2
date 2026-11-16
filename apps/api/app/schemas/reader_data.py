@@ -46,10 +46,10 @@ class ReadingProgressResponse(BaseModel):
 
 class ReaderLookupRequest(BaseModel):
     article_id: UUID
-    surface: str = Field(min_length=1)
-    lemma: str = Field(min_length=1)
-    reading: str | None = None
-    context: str | None = None
+    surface: str = Field(min_length=1, max_length=255)
+    lemma: str = Field(min_length=1, max_length=255)
+    reading: str | None = Field(default=None, max_length=255)
+    context: str | None = Field(default=None, max_length=4000)
     # False：先快速返回中文释义，不等 Tatoeba 例句；前端随后再用 True 补全例句
     include_example: bool = True
 

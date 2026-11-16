@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta, timezone
 from time import perf_counter
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db_session
 from app.core.config import get_settings
+from app.core.rate_limit import enforce_rate_limit
 from app.models.entities import AIExplanation, Article, Highlight, User
 from app.schemas.ai_explanation import (
     AIExplanationCreateRequest,
@@ -60,6 +62,24 @@ def _validate_highlight_access(db: Session, highlight_id: UUID, article_id: UUID
     return highlight
 
 
+def _enforce_daily_quota(db: Session, user_id: UUID, daily_limit: int) -> None:
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    used = db.scalar(
+        select(func.count())
+        .select_from(AIExplanation)
+        .where(
+            AIExplanation.user_id == user_id,
+            AIExplanation.from_cache.is_(False),
+            AIExplanation.created_at >= since,
+        )
+    )
+    if (used or 0) >= daily_limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"过去 24 小时的 AI 解释次数已用完（上限 {daily_limit} 次），请晚些再试。查词和阅读不受影响。",
+        )
+
+
 @router.post("", response_model=AIExplanationResponse, status_code=status.HTTP_201_CREATED)
 def create_ai_explanation(
     payload: AIExplanationCreateRequest,
@@ -67,6 +87,13 @@ def create_ai_explanation(
     current_user: User = Depends(get_current_user),
 ) -> AIExplanationResponse:
     started_at = perf_counter()
+    settings = get_settings()
+    enforce_rate_limit(
+        f"ai:user:{current_user.id}",
+        limit=settings.ai_per_minute_limit,
+        window_seconds=60,
+        message="操作太快了，请稍等一分钟再试。",
+    )
     _validate_article_access(db, payload.article_id, current_user.id)
 
     if payload.highlight_id:
@@ -97,6 +124,8 @@ def create_ai_explanation(
     if cached:
         response_json, meta = cached
     else:
+        # 只有真正要调用模型（会花钱）时才检查每日额度；读缓存不占额度
+        _enforce_daily_quota(db, current_user.id, settings.ai_daily_limit)
         response_json, meta = generate_explanation(
             sentence=payload.sentence,
             previous_sentence=payload.previous_sentence,
