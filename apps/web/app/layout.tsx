@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 import { Providers } from "../components/providers";
 import { TopNav } from "../components/top-nav";
@@ -20,6 +21,15 @@ export default function RootLayout({
         <Providers>
           <TopNav />
           <main className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 lg:px-8">{children}</main>
+          <footer className="mx-auto flex w-full max-w-7xl gap-4 px-4 pb-24 pt-8 text-xs text-zinc-500 sm:px-6 lg:px-8">
+            <span>© 2026 Genbun</span>
+            <Link className="hover:underline" href="/privacy">
+              隐私政策
+            </Link>
+            <Link className="hover:underline" href="/terms">
+              服务条款
+            </Link>
+          </footer>
         </Providers>
       </body>
     </html>

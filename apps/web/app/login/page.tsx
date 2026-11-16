@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { login, register } from "../../lib/api";
@@ -75,6 +76,20 @@ export default function LoginPage() {
           />
           {mode === "register" ? <span className="mt-1 block text-xs text-zinc-500">{passwordRuleMessage}</span> : null}
         </label>
+
+        {mode === "register" ? (
+          <p className="text-xs text-zinc-500">
+            注册即表示你同意
+            <Link className="underline" href="/terms">
+              服务条款
+            </Link>
+            和
+            <Link className="underline" href="/privacy">
+              隐私政策
+            </Link>
+            。
+          </p>
+        ) : null}
 
         {clientError ? <p className="text-sm text-red-600">{clientError}</p> : null}
         {!clientError && mutation.isError ? <p className="text-sm text-red-600">{(mutation.error as Error).message}</p> : null}
