@@ -81,9 +81,14 @@ services:
       OPENAI_MAX_RETRIES: ${OPENAI_MAX_RETRIES:-2}
       GEMINI_PROJECT_ID: ${GEMINI_PROJECT_ID:-}
       GEMINI_LOCATION: ${GEMINI_LOCATION:-global}
-      GEMINI_MODEL: ${GEMINI_MODEL:-google/gemini-3.5-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-google/gemini-3.5-flash-lite}
       AI_PROMPT_VERSION: ${AI_PROMPT_VERSION:-v2}
       AI_CACHE_TTL_SECONDS: ${AI_CACHE_TTL_SECONDS:-86400}
+      # Cost guards; set in .env.gcp-vm to override the code defaults.
+      AI_DAILY_LIMIT: ${AI_DAILY_LIMIT:-3}
+      AI_DAILY_BUDGET_USD: ${AI_DAILY_BUDGET_USD:-1.0}
+      AI_INPUT_USD_PER_MILLION: ${AI_INPUT_USD_PER_MILLION:-0.3}
+      AI_OUTPUT_USD_PER_MILLION: ${AI_OUTPUT_USD_PER_MILLION:-2.5}
     depends_on:
       postgres:
         condition: service_healthy

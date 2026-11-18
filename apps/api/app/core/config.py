@@ -31,18 +31,18 @@ class Settings(BaseSettings):
     openai_max_retries: int = 2
     gemini_project_id: str | None = None
     gemini_location: str = "global"
-    gemini_model: str = "google/gemini-3.5-flash"
+    gemini_model: str = "google/gemini-3.5-flash-lite"
     ai_prompt_version: str = "v2"
     ai_cache_ttl_seconds: int = 86400
 
     # 防刷与成本保护。数字都可以用同名环境变量覆盖（如 AI_DAILY_LIMIT=50）。
-    ai_daily_limit: int = 20  # 每个账号 24 小时内可新生成的 AI 解释次数（命中缓存不计）
+    ai_daily_limit: int = 3  # 免费账号 24 小时内可新生成的 AI 解释次数（命中缓存不计）
     # 全站 AI 花费上限：过去 24 小时所有账号新生成的解释按 token 估算的美元成本。
-    # 默认 $1/天 ≈ 45 次解释；$100/月赠金扣掉服务器约 $70 后剩约 $30/月。
+    # 默认 $1/天；flash-lite 每次约 $0.005，约 190 次/天。$100/月赠金扣掉服务器约 $70 后剩约 $30/月。
     ai_daily_budget_usd: float = 1.0
-    ai_input_usd_per_million: float = 1.5  # gemini-3.5-flash on Vertex AI
-    ai_output_usd_per_million: float = 9.0
-    ai_unmetered_call_usd: float = 0.025  # 没记录到 token 的调用（超时、报错）按一次正常调用保守计费
+    ai_input_usd_per_million: float = 0.3  # gemini-3.5-flash-lite on Vertex AI (flash: 1.5 / 9.0)
+    ai_output_usd_per_million: float = 2.5
+    ai_unmetered_call_usd: float = 0.006  # 没记录到 token 的调用（超时、报错）按一次正常调用保守计费
     ai_per_minute_limit: int = 10
     lookup_per_minute_limit: int = 120
     login_per_15min_limit: int = 10

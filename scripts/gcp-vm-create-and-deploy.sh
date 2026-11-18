@@ -17,6 +17,7 @@ BRANCH="${BRANCH:-$(git branch --show-current 2>/dev/null || echo main)}"
 DOMAIN="${DOMAIN:-genbun.live}"
 REGION="${ZONE%-*}"
 ADDRESS_NAME="${ADDRESS_NAME:-yomuyomu-ip}"
+GEMINI_MODEL="${GEMINI_MODEL:-google/gemini-3.5-flash-lite}"
 
 if [ -z "$PROJECT_ID" ]; then
   echo "Set PROJECT_ID or run: gcloud config set project YOUR_PROJECT_ID" >&2
@@ -152,7 +153,7 @@ OPENAI_TIMEOUT_SECONDS=30
 OPENAI_MAX_RETRIES=2
 GEMINI_PROJECT_ID=${PROJECT_ID}
 GEMINI_LOCATION=global
-GEMINI_MODEL=google/gemini-3.5-flash
+GEMINI_MODEL=$GEMINI_MODEL
 AI_PROMPT_VERSION=v2
 AI_CACHE_TTL_SECONDS=86400
 
@@ -165,7 +166,7 @@ ENV
 fi
 
 # Re-runs switch an existing env from IP to the domain once DNS is ready.
-sed -i "s|^YOMUYOMU_SITE_ADDRESS=.*|YOMUYOMU_SITE_ADDRESS=$SITE_ADDRESS|; s|^WEB_ORIGIN=.*|WEB_ORIGIN=$WEB_ORIGIN|" .env.gcp-vm
+sed -i "s|^YOMUYOMU_SITE_ADDRESS=.*|YOMUYOMU_SITE_ADDRESS=$SITE_ADDRESS|; s|^WEB_ORIGIN=.*|WEB_ORIGIN=$WEB_ORIGIN|; s|^GEMINI_MODEL=.*|GEMINI_MODEL=$GEMINI_MODEL|" .env.gcp-vm
 
 sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml up -d --build
 sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml ps
