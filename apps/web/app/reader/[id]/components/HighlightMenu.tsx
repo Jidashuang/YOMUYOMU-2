@@ -1,6 +1,26 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
+import { computePopupPlacement } from "../../../../lib/popup-placement";
 import type { SelectionMenuState } from "./types";
+
+const MENU_WIDTH = 360;
+
+function useViewportSize() {
+  const [size, setSize] = useState(() =>
+    typeof window === "undefined"
+      ? { width: 1024, height: 768 }
+      : { width: window.innerWidth, height: window.innerHeight }
+  );
+  useEffect(() => {
+    const update = () => setSize({ width: window.innerWidth, height: window.innerHeight });
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+  return size;
+}
 
 interface HighlightMenuProps {
   selectionMenu: SelectionMenuState | null;
@@ -21,15 +41,35 @@ export function HighlightMenu({
   onCopy,
   onAddToVocab,
 }: HighlightMenuProps) {
+  const viewport = useViewportSize();
+
   if (!selectionMenu) {
     return null;
   }
 
+  // 限制在屏幕内：左右不越界；下方放不下时翻到选区上方
+  const placement = computePopupPlacement({
+    x: selectionMenu.x,
+    y: selectionMenu.y,
+    anchorTop: selectionMenu.anchorTop,
+    viewportWidth: viewport.width,
+    viewportHeight: viewport.height,
+    width: MENU_WIDTH,
+    preferredMinHeight: 180,
+    allowSheet: false,
+  });
+  const placementStyle =
+    placement.mode === "above"
+      ? { left: placement.left, bottom: placement.bottom, maxHeight: placement.maxHeight, width: placement.width }
+      : placement.mode === "below"
+        ? { left: placement.left, top: placement.top, maxHeight: placement.maxHeight, width: placement.width }
+        : {};
+
   return (
     <div
       data-testid="highlight-menu"
-      className="fixed z-30 w-[360px] max-w-[calc(100vw-16px)] -translate-x-1/2 rounded-xl border border-zinc-200 bg-white p-3 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
-      style={{ left: selectionMenu.x, top: selectionMenu.y }}
+      className="fixed z-30 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-3 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
+      style={placementStyle}
       // Keep the floating menu anchored to the live text selection: a mousedown on the
       // menu would otherwise collapse the document selection and shift focus, which makes
       // the just-rendered buttons jitter/detach before the click lands (Playwright reports

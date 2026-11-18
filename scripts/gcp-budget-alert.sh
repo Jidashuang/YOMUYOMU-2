@@ -2,9 +2,9 @@
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}"
-EXPECTED_GCLOUD_ACCOUNT="jidashuang8@gmail.com"
-EXPECTED_GCP_PROJECT="project-c2a014a9-0b24-44a9-abb"
-BUDGET_AMOUNT="${BUDGET_AMOUNT:-10USD}"
+EXPECTED_GCLOUD_ACCOUNT="${EXPECTED_GCLOUD_ACCOUNT:-zm5848746@gmail.com}"
+EXPECTED_GCP_PROJECT="${EXPECTED_GCP_PROJECT:-gen-lang-client-0186292874}"
+BUDGET_AMOUNT="${BUDGET_AMOUNT:-13000JPY}"
 DISPLAY_NAME="${DISPLAY_NAME:-Yomuyomu $BUDGET_AMOUNT monthly guardrail}"
 
 if [ -z "$PROJECT_ID" ]; then

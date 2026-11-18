@@ -161,7 +161,9 @@ Required changes:
 - `LLM_PROVIDER`: `gemini`
 - `GEMINI_PROJECT_ID`: your Google Cloud project ID
 - `GEMINI_LOCATION`: `global`
-- `GEMINI_MODEL`: `google/gemini-3.5-flash`
+- `GEMINI_MODEL`: `google/gemini-3.5-flash-lite` (about $0.005 per explanation)
+- `AI_DAILY_LIMIT`: new AI explanations per account per 24h (default `3`)
+- `AI_DAILY_BUDGET_USD`: site-wide estimated AI spend per 24h (default `1.0`)
 - `OPENAI_API_KEY`: optional; set only when you want to switch `LLM_PROVIDER` back to `openai`
 
 Generate secrets on the VM:

@@ -8,6 +8,8 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, get_db_session
+from app.core.config import get_settings
+from app.core.rate_limit import enforce_rate_limit
 from app.models.entities import (
     AIExplanation,
     Article,
@@ -121,6 +123,18 @@ def create_article(
     db: Session = Depends(get_db_session),
     current_user: User = Depends(get_current_user),
 ) -> ArticleDetailResponse:
+    settings = get_settings()
+    enforce_rate_limit(
+        f"article-create:user:{current_user.id}",
+        limit=settings.article_create_per_hour_limit,
+        window_seconds=3600,
+        message="导入太频繁了，请一小时后再试。",
+    )
+    if payload.source_type == "text" and len(payload.raw_content) > settings.max_text_chars:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"文本超过 {settings.max_text_chars // 10000} 万字上限，请分成几段导入。",
+        )
     if payload.source_type == "epub":
         try:
             validate_epub_payload_size(payload.raw_content)

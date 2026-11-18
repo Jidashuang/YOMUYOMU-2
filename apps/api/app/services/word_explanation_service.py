@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import time
 from html.parser import HTMLParser
 from typing import Any
 from urllib.parse import quote
@@ -12,6 +13,9 @@ from pydantic import BaseModel, Field
 
 from app.core.cache import get_redis_client
 from app.core.config import get_settings
+
+# Tatoeba 例句是可选内容，整个例句查询的总时间上限（秒）
+TATOEBA_BUDGET_SECONDS = 1.5
 
 
 class WordExplanation(BaseModel):
@@ -274,7 +278,12 @@ def _fetch_tatoeba_example(
 ) -> tuple[str, str, str] | None:
     terms = list(dict.fromkeys([surface, lemma]))
     queries = list(dict.fromkeys([f"={term}" for term in terms] + terms))
+    # 例句只是锦上添花：整个例句查询最多占用 TATOEBA_BUDGET_SECONDS，避免拖慢查词弹窗
+    deadline = time.monotonic() + TATOEBA_BUDGET_SECONDS
     for query in queries:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0.2:
+            break
         term = query.removeprefix("=")
         try:
             response = httpx.get(
@@ -287,7 +296,7 @@ def _fetch_tatoeba_example(
                     "limit": 5,
                 },
                 headers={"User-Agent": "Yomuyomu/0.1 dictionary lookup"},
-                timeout=min(timeout_seconds, 6.0),
+                timeout=min(timeout_seconds, remaining),
             )
             response.raise_for_status()
             candidates: list[tuple[int, str, str, str]] = []
@@ -331,6 +340,7 @@ def _translated_fallback(
     meanings: list[str],
     primary_meaning: str,
     timeout_seconds: float,
+    include_example: bool = True,
 ) -> WordExplanation | None:
     meaning_zh = _translate_jmdict_meaning(
         meanings=meanings,
@@ -340,10 +350,14 @@ def _translated_fallback(
     if not meaning_zh:
         return None
 
-    example = _fetch_tatoeba_example(
-        surface=surface,
-        lemma=lemma,
-        timeout_seconds=timeout_seconds,
+    example = (
+        _fetch_tatoeba_example(
+            surface=surface,
+            lemma=lemma,
+            timeout_seconds=timeout_seconds,
+        )
+        if include_example
+        else None
     )
     example_ja, example_zh, example_url = example or ("", "", "")
     return WordExplanation(
@@ -365,13 +379,21 @@ def generate_word_explanation(
     meanings: list[str],
     primary_meaning: str,
     context: str,
+    include_example: bool = True,
 ) -> WordExplanation | None:
     settings = get_settings()
 
     key = _cache_key(surface, lemma, primary_meaning, context)
+    # 完整结果（含例句）优先；快速模式的结果单独缓存，不会冒充完整结果
     cached = _load_cached(key)
     if cached:
         return cached
+    save_key = key
+    if not include_example:
+        save_key = f"{key}:fast"
+        cached = _load_cached(save_key)
+        if cached:
+            return cached
 
     explanation = _fetch_wiktionary(
         surface=surface,
@@ -441,9 +463,10 @@ def generate_word_explanation(
             meanings=meanings,
             primary_meaning=primary_meaning,
             timeout_seconds=settings.openai_timeout_seconds,
+            include_example=include_example,
         )
     if explanation is None:
         return None
 
-    _save_cached(key, explanation)
+    _save_cached(save_key, explanation)
     return explanation

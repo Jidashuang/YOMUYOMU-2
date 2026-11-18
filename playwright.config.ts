@@ -16,8 +16,9 @@ export default defineConfig({
     command: "npm run dev --workspace @yomuyomu/web -- --hostname 127.0.0.1 --port 3100",
     url: "http://127.0.0.1:3100/login",
     timeout: 180_000,
-    reuseExistingServer: true,
+    reuseExistingServer: !process.env.CI,
     env: {
+      PLAYWRIGHT_TEST: "1",
       NEXT_PUBLIC_API_BASE_URL: "http://localhost:8000",
       NEXT_PUBLIC_NLP_BASE_URL: "http://localhost:8001",
     },

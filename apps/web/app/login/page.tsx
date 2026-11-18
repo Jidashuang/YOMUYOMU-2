@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { login, register } from "../../lib/api";
@@ -10,8 +11,8 @@ import { Button } from "@yomuyomu/ui";
 export default function LoginPage() {
   const router = useRouter();
   const setAuth = useAuthStore((state) => state.setAuth);
-  const [email, setEmail] = useState("demo@example.com");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [mode, setMode] = useState<"login" | "register">("login");
   const [clientError, setClientError] = useState("");
   const passwordRuleMessage = "密码至少 8 个字符，最多 128 个字符。";
@@ -32,7 +33,7 @@ export default function LoginPage() {
   return (
     <div className="mx-auto max-w-md rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
       <h1 className="text-xl font-semibold">{mode === "login" ? "登录" : "注册"}</h1>
-      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">Phase 1 使用 email + password + JWT。</p>
+      <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{mode === "login" ? "登录后继续阅读，你的书架和生词会保存在账号里。" : "用邮箱创建账号，保存你的书架、生词和阅读进度。"}</p>
 
       <form
         className="mt-6 space-y-4"
@@ -47,18 +48,20 @@ export default function LoginPage() {
         }}
       >
         <label className="block text-sm">
-          Email
+          邮箱
           <input
             data-testid="login-email"
             className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
             type="email"
+            autoComplete="email"
+            required
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
         </label>
 
         <label className="block text-sm">
-          Password
+          密码
           <input
             data-testid="login-password"
             className="mt-1 w-full rounded-md border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700"
@@ -73,6 +76,20 @@ export default function LoginPage() {
           />
           {mode === "register" ? <span className="mt-1 block text-xs text-zinc-500">{passwordRuleMessage}</span> : null}
         </label>
+
+        {mode === "register" ? (
+          <p className="text-xs text-zinc-500">
+            注册即表示你同意
+            <Link className="underline" href="/terms">
+              服务条款
+            </Link>
+            和
+            <Link className="underline" href="/privacy">
+              隐私政策
+            </Link>
+            。
+          </p>
+        ) : null}
 
         {clientError ? <p className="text-sm text-red-600">{clientError}</p> : null}
         {!clientError && mutation.isError ? <p className="text-sm text-red-600">{(mutation.error as Error).message}</p> : null}

@@ -150,20 +150,33 @@ export default function ReaderPage() {
     [savedVocabQuery.data]
   );
 
-  const lookupQuery = useQuery({
-    queryKey: ["lookup", articleId, selectedToken?.token.surface, selectedToken?.token.lemma, selectedToken?.blockId],
-    queryFn: () =>
-      lookupWordInReader({
-        article_id: articleId,
-        surface: selectedToken?.token.surface ?? "",
-        lemma: selectedToken?.token.lemma || selectedToken?.token.surface || "",
-        reading: selectedToken?.token.reading ? katakanaToHiragana(selectedToken.token.reading) : "",
-        context: selectedToken?.blockText,
-      }),
-    enabled: Boolean(selectedToken) && hydrated && isAuthorized,
+  // 查词分两步：先快速拿到中文释义（不等 Tatoeba 例句），再在后台补全例句。
+  const lookupKeyBase = ["lookup", articleId, selectedToken?.token.surface, selectedToken?.token.lemma, selectedToken?.blockId];
+  const buildLookupRequest = (includeExample: boolean) => ({
+    article_id: articleId,
+    surface: selectedToken?.token.surface ?? "",
+    lemma: selectedToken?.token.lemma || selectedToken?.token.surface || "",
+    reading: selectedToken?.token.reading ? katakanaToHiragana(selectedToken.token.reading) : "",
+    context: selectedToken?.blockText,
+    include_example: includeExample,
+  });
+  const lookupEnabled = Boolean(selectedToken) && hydrated && isAuthorized;
+
+  const lookupFastQuery = useQuery({
+    queryKey: [...lookupKeyBase, "fast"],
+    queryFn: () => lookupWordInReader(buildLookupRequest(false)),
+    enabled: lookupEnabled,
+  });
+  const lookupFullQuery = useQuery({
+    queryKey: [...lookupKeyBase, "full"],
+    queryFn: () => lookupWordInReader(buildLookupRequest(true)),
+    enabled: lookupEnabled && (lookupFastQuery.isSuccess || lookupFastQuery.isError),
   });
 
-  const lookupEntries = useMemo(() => lookupQuery.data?.entries ?? [], [lookupQuery.data]);
+  const lookupEntries = useMemo(
+    () => lookupFullQuery.data?.entries ?? lookupFastQuery.data?.entries ?? [],
+    [lookupFullQuery.data, lookupFastQuery.data]
+  );
   const firstEntry = useMemo(() => lookupEntries[0], [lookupEntries]);
 
   const highlightsByBlock = useMemo(() => {
@@ -363,10 +376,11 @@ export default function ReaderPage() {
   const goToNextPage = () => goToReaderPage(currentReaderPage + 1);
 
   useEffect(() => {
-    if (currentPageIndex >= totalReaderPages) {
+    // An uncached page has no data yet; its temporary page count must not reset the selection.
+    if (articleQuery.data && currentPageIndex >= totalReaderPages) {
       setCurrentPageIndex(totalReaderPages - 1);
     }
-  }, [currentPageIndex, totalReaderPages]);
+  }, [articleQuery.data, currentPageIndex, totalReaderPages]);
 
   // Restore the last-read page once, after the article (page count) and saved progress load.
   useEffect(() => {
@@ -436,8 +450,8 @@ export default function ReaderPage() {
   if (!isAuthorized) {
     return (
       <section className="space-y-3">
-        <h1 className="text-2xl font-semibold">Reader</h1>
-        <p className="text-sm text-zinc-600 dark:text-zinc-300">请先登录后访问 Reader。</p>
+        <h1 className="text-2xl font-semibold">阅读器</h1>
+        <p className="text-sm text-zinc-600 dark:text-zinc-300">请先登录，再打开这篇文章。</p>
         <Link href="/login" className="inline-flex rounded-md bg-brand-500 px-4 py-2 text-white hover:bg-brand-700">
           去登录
         </Link>
@@ -583,10 +597,11 @@ export default function ReaderPage() {
         onSelectPanel={setActivePanel}
       >
         <div className="mx-auto w-full max-w-[96rem] space-y-5">
-      <header className="grid gap-4 rounded-lg border border-stone-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 lg:grid-cols-[minmax(0,1fr)_auto]">
+      <header className="grid gap-3 rounded-lg border border-stone-200 bg-white p-3 dark:border-zinc-800 dark:bg-zinc-900 sm:gap-4 sm:p-4 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="space-y-1">
-          <h1 className="text-2xl font-semibold">原文精读</h1>
-          <p className="text-sm text-zinc-600 dark:text-zinc-300">
+          <h1 className="text-xl font-semibold sm:text-2xl">原文精读</h1>
+          {/* 手机上首屏要留给正文，说明文字只在 sm 以上显示 */}
+          <p className="hidden text-sm text-zinc-600 dark:text-zinc-300 sm:block">
             读完它，卡住时点词或选句让 AI 中文拆解，再把对你有用的词加进生词本。
           </p>
         </div>
@@ -609,9 +624,10 @@ export default function ReaderPage() {
               </button>
             ))}
           </div>
-          <p className="text-xs text-zinc-500">
+          <p className="hidden text-xs text-zinc-500 sm:block">
             当前显示：{ANNOTATION_LEVELS.find((item) => item.value === annotationLevel)?.description}
           </p>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <div className="flex gap-2 text-[11px] text-zinc-500" aria-label="JLPT color legend">
             <span className="rounded bg-sky-100 px-1.5 py-0.5 text-sky-950 dark:bg-sky-950/40 dark:text-sky-200">N3</span>
             <span className="rounded bg-amber-100 px-1.5 py-0.5 text-amber-950 dark:bg-amber-950/40 dark:text-amber-200">N2</span>
@@ -622,7 +638,7 @@ export default function ReaderPage() {
             data-testid="furigana-toggle"
             aria-pressed={furiganaVisible}
             onClick={() => setFuriganaVisible(!furiganaVisible)}
-            className={`mt-1 inline-flex w-fit items-center gap-1 rounded-md border px-2.5 py-1 text-xs ${
+            className={`inline-flex w-fit items-center gap-1 rounded-md border px-2.5 py-1 text-xs ${
               furiganaVisible
                 ? "border-brand-500 bg-brand-50 text-brand-700 dark:border-brand-500 dark:bg-brand-900/30 dark:text-brand-100"
                 : "border-stone-300 text-zinc-600 hover:bg-stone-100 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
@@ -630,6 +646,7 @@ export default function ReaderPage() {
           >
             振假名：{furiganaVisible ? "开" : "关"}
           </button>
+          </div>
         </div>
       </header>
 
@@ -791,7 +808,9 @@ export default function ReaderPage() {
 
             <aside
               data-testid="reader-ai-companion"
-              className="order-first min-w-0 xl:order-none xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto"
+              className={`${
+                latestAi || createAiMutation.isPending ? "order-first" : "order-last"
+              } min-w-0 xl:order-none xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto`}
             >
               <ExplanationPanel
                 latestAi={latestAi}
@@ -824,7 +843,7 @@ export default function ReaderPage() {
       <TokenPopup
         selectedToken={selectedToken}
         lookupEntries={lookupEntries}
-        isLookupLoading={lookupQuery.isLoading}
+        isLookupLoading={lookupFastQuery.isLoading}
         isSavingVocab={saveTokenVocabMutation.isPending}
         alreadySaved={
           selectedTokenKey ? savedVocabKeys.has(selectedTokenKey) || recentlySavedTokenKey === selectedTokenKey : false

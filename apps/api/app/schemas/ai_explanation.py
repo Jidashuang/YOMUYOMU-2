@@ -76,10 +76,10 @@ class SuggestedVocabItem(BaseModel):
 class AIExplanationCreateRequest(BaseModel):
     article_id: UUID
     highlight_id: UUID | None = None
-    sentence: str = Field(min_length=1)
-    previous_sentence: str = ""
-    next_sentence: str = ""
-    user_level: str = "N3"
+    sentence: str = Field(min_length=1, max_length=1000)
+    previous_sentence: str = Field(default="", max_length=1000)
+    next_sentence: str = Field(default="", max_length=1000)
+    user_level: str = Field(default="N3", max_length=16)
 
 
 class AIExplanationResponse(BaseModel):

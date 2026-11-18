@@ -310,16 +310,32 @@ class OpenAIProvider:
             "Return strict JSON with keys: "
             "translation_zh, literal_translation, grammar_points, token_breakdown, omissions, nuance, examples, "
             "why_this_expression, alternative_expressions. "
+            "Shapes: translation_zh, literal_translation, nuance, why_this_expression are strings; "
+            "grammar_points is a list of {\"name\": string, \"explanation\": string}; "
+            "token_breakdown is a list of {\"surface\", \"lemma\", \"reading\", \"meaning\", \"role\"} strings; "
+            "omissions is a list of strings; examples is a list of {\"jp\", \"zh\"} strings; "
+            "alternative_expressions is a list of {\"jp\", \"zh\", \"note\"} strings. "
+            "Write all explanations in Simplified Chinese. "
             "Do not include markdown or extra keys. "
+            "Be brief and level-aware: input.user_level is the reader's JLPT level (N3 < N2 < N1). "
+            "Only explain what a reader at that level probably does not know. "
+            "token_breakdown: at most 8 items, chosen words or set phrases only; never particles, punctuation, "
+            "auxiliaries, copulas, or words easier than user_level; write inflected forms as one item as they appear "
+            "(e.g. 流れてる, not 流れ + てる); include proper nouns only when the reading or meaning is not obvious; "
+            "use an empty list if nothing qualifies. "
+            "grammar_points: at most 3, only patterns at or above user_level. "
+            "examples: at most 2, only for the hardest point. "
+            "literal_translation: empty string unless the word order or structure is genuinely hard. "
+            "omissions and alternative_expressions: usually empty lists. "
+            "Keep every explanation and meaning under 40 Chinese characters and nuance under 80. "
             f"Prompt version: {prompt_version}."
         )
 
         user_prompt = {
-            "task": "Explain the Japanese sentence for a Chinese learner.",
+            "task": "Explain the Japanese sentence for a Chinese learner at input.user_level.",
             "constraints": {
                 "language": "Chinese",
-                "must_use_preprocessed_tokens": True,
-                "must_use_dictionary_hints": True,
+                "preprocessed_tokens_and_dictionary_hints": "reference only; do not explain every token",
                 "json_only": True,
             },
             "input": payload,
@@ -469,6 +485,12 @@ class GeminiProvider(OpenAIProvider):
         else:
             host = f"https://{self.location}-aiplatform.googleapis.com"
         return f"{host}/v1/projects/{self.project_id}/locations/{self.location}/endpoints/openapi/chat/completions"
+
+    def _build_payload(self, payload: dict[str, Any], prompt_version: str) -> dict[str, Any]:
+        body = super()._build_payload(payload, prompt_version)
+        # Default thinking took 16-20s per sentence on gemini-3.5-flash; "low" ~8s with the same answer quality.
+        body["reasoning_effort"] = "low"
+        return body
 
     def _headers(self) -> dict[str, str]:
         return {

@@ -2,11 +2,11 @@
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}"
-EXPECTED_GCLOUD_ACCOUNT="jidashuang8@gmail.com"
-EXPECTED_GCP_PROJECT="project-c2a014a9-0b24-44a9-abb"
-ZONE="${ZONE:-us-west1-b}"
+EXPECTED_GCLOUD_ACCOUNT="${EXPECTED_GCLOUD_ACCOUNT:-zm5848746@gmail.com}"
+EXPECTED_GCP_PROJECT="${EXPECTED_GCP_PROJECT:-gen-lang-client-0186292874}"
+ZONE="${ZONE:-asia-northeast1-b}"
 INSTANCE_NAME="${INSTANCE_NAME:-yomuyomu-vm}"
-MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
+MACHINE_TYPE="${MACHINE_TYPE:-e2-standard-2}"
 FIREWALL_RULE="${FIREWALL_RULE:-yomuyomu-allow-http-https}"
 NETWORK="${NETWORK:-default}"
 

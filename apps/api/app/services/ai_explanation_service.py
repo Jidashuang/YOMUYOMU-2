@@ -15,7 +15,13 @@ from app.services.nlp_client import nlp_client
 
 SKIP_POS = {"助詞", "助動詞", "補助記号", "記号"}
 CONTENT_POS_KEYWORDS = ("名詞", "動詞", "形容詞", "副詞", "接頭辞", "接尾辞", "verb", "noun", "adjective", "adverb")
-AI_EXPLANATION_ENGINE_VERSION = "real-v1"
+# Bump when the shape or length of explanations changes so stale cached answers aren't served.
+AI_EXPLANATION_ENGINE_VERSION = "real-v2-brief"
+ADVANCED_LEVELS = {"N1", "N2"}
+MAX_TOKEN_BREAKDOWN = 8
+MAX_GRAMMAR_POINTS = 3
+MAX_EXAMPLES = 2
+TRIVIAL_ROLE_WORDS = ("particle", "punctuation", "auxiliary", "copula", "symbol")
 
 _cache_lock = Lock()
 _cache_requests = 0
@@ -177,10 +183,15 @@ def _normalize_explanation_shape(response_json: dict[str, Any]) -> dict[str, Any
         if not isinstance(item, dict):
             continue
         updated = dict(item)
-        if not updated.get("name") and updated.get("grammar"):
-            updated["name"] = updated["grammar"]
-        if not updated.get("name") and updated.get("structure"):
-            updated["name"] = updated["structure"]
+        for alias in ("grammar", "grammar_point", "pattern", "point", "structure", "title"):
+            if not updated.get("name") and updated.get(alias):
+                updated["name"] = updated[alias]
+        if not updated.get("explanation"):
+            updated["explanation"] = str(updated.get("meaning") or updated.get("description") or "").strip()
+        elif updated.get("meaning") and str(updated["meaning"]) not in str(updated["explanation"]):
+            updated["explanation"] = f"{updated['meaning']}。{updated['explanation']}"
+        if not updated.get("name"):
+            continue
         grammar_points.append(updated)
     normalized["grammar_points"] = grammar_points
 
@@ -199,6 +210,17 @@ def _normalize_explanation_shape(response_json: dict[str, Any]) -> dict[str, Any
     omissions = normalized.get("omissions", [])
     if isinstance(omissions, str):
         normalized["omissions"] = [omissions] if omissions.strip() else []
+    elif isinstance(omissions, list):
+        # Models sometimes return {"omitted_element": ..., "explanation": ...} objects; flatten to text.
+        flattened: list[str] = []
+        for item in omissions:
+            if isinstance(item, dict):
+                text = "：".join(str(value).strip() for value in item.values() if str(value).strip())
+            else:
+                text = str(item).strip()
+            if text:
+                flattened.append(text)
+        normalized["omissions"] = flattened
 
     examples = []
     for item in normalized.get("examples", []):
@@ -232,18 +254,77 @@ def _normalize_explanation_shape(response_json: dict[str, Any]) -> dict[str, Any
     return normalized
 
 
-def _stabilize_explanation_json(response_json: dict[str, Any], sentence: str) -> dict[str, Any]:
+def _is_trivial_breakdown_item(item: dict[str, Any]) -> bool:
+    """Particles, punctuation and auxiliaries never need their own line in the explanation panel."""
+    surface = str(item.get("surface", "")).strip()
+    role = str(item.get("role", "")).strip().lower()
+    if not surface or all(not ch.isalnum() for ch in surface):
+        return True
+    if any(pos in role for pos in SKIP_POS):
+        return True
+    return any(word in role for word in TRIVIAL_ROLE_WORDS)
+
+
+JLPT_RANK = {"N1": 1, "N2": 2, "N3": 3, "N4": 4, "N5": 5}
+
+
+def _drop_words_below_level(
+    breakdown: list[dict[str, Any]],
+    user_level: str | None,
+    tokenized_result: list[dict[str, Any]],
+    dictionary_hints: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Remove words our JLPT data marks as easier than the reader's level (the model is unreliable at this).
+
+    Words with no known level (compounds, rare words, proper nouns) are kept.
+    """
+    reader_rank = JLPT_RANK.get(str(user_level or "").upper())
+    if reader_rank is None:
+        return breakdown
+
+    word_rank: dict[str, int] = {}
+    for source in (*tokenized_result, *dictionary_hints):
+        rank = JLPT_RANK.get(str(source.get("jlpt_level", "")).upper())
+        if rank is None:
+            continue
+        for key in (source.get("lemma"), source.get("surface")):
+            if key:
+                word_rank.setdefault(str(key), rank)
+
+    kept = []
+    for item in breakdown:
+        rank = word_rank.get(str(item.get("lemma", ""))) or word_rank.get(str(item.get("surface", "")))
+        if rank is not None and rank > reader_rank:
+            continue
+        kept.append(item)
+    return kept
+
+
+def _stabilize_explanation_json(
+    response_json: dict[str, Any], sentence: str, user_level: str | None = None, *, brief: bool = True
+) -> dict[str, Any]:
     response_json = _normalize_explanation_shape(response_json)
     validated = AIExplanationJSON.model_validate(response_json).model_dump()
 
-    existing = {
-        str(item.get("name", "")).strip(): item
-        for item in validated.get("grammar_points", [])
-        if isinstance(item, dict)
-    }
-    for point in _deterministic_grammar_points(sentence):
-        if point["name"] not in existing:
-            validated["grammar_points"].append(point)
+    # Keep the panel short even if the model over-explains. The offline rules fallback is
+    # already hand-tuned, so callers pass brief=False for it.
+    if brief:
+        validated["token_breakdown"] = [
+            item for item in validated["token_breakdown"] if not _is_trivial_breakdown_item(item)
+        ][:MAX_TOKEN_BREAKDOWN]
+        validated["grammar_points"] = validated["grammar_points"][:MAX_GRAMMAR_POINTS]
+        validated["examples"] = validated["examples"][:MAX_EXAMPLES]
+
+    # Built-in basic grammar notes (ている, だろう, ...) are only useful below N2.
+    if user_level and user_level.upper() not in ADVANCED_LEVELS:
+        existing = {
+            str(item.get("name", "")).strip(): item
+            for item in validated.get("grammar_points", [])
+            if isinstance(item, dict)
+        }
+        for point in _deterministic_grammar_points(sentence):
+            if point["name"] not in existing and (not brief or len(validated["grammar_points"]) < MAX_GRAMMAR_POINTS):
+                validated["grammar_points"].append(point)
 
     if not validated.get("why_this_expression"):
         if validated["grammar_points"]:
@@ -424,16 +505,22 @@ def generate_explanation(
         model = requested_model_name
         provider_name = requested_provider_name
 
+    # Only trim real model answers; the offline rules fallback is already concise and hand-tuned.
+    from_model = upstream_error_type is None and provider_name not in ("wikimedia-mint-rules", "mock")
     try:
-        validated = _stabilize_explanation_json(raw_response, sentence)
+        validated = _stabilize_explanation_json(raw_response, sentence, user_level, brief=from_model)
     except Exception:  # noqa: BLE001
         try:
             fallback = NoKeyChineseExplanationProvider(settings.openai_timeout_seconds).generate(payload, prompt_version)
-            validated = _stabilize_explanation_json(fallback.response_json, sentence)
+            validated = _stabilize_explanation_json(fallback.response_json, sentence, user_level, brief=False)
             upstream_error_type = upstream_error_type or "parse_or_schema_error"
         except Exception:  # noqa: BLE001
             validated = _stabilize_explanation_json(_safe_fallback_explanation(sentence), sentence)
             upstream_error_type = upstream_error_type or "safe_fallback"
+
+    validated["token_breakdown"] = _drop_words_below_level(
+        validated["token_breakdown"], user_level, tokenized_result, dictionary_hints
+    )
 
     suggested_vocab = extract_suggested_vocab(
         tokenized_result=tokenized_result,
