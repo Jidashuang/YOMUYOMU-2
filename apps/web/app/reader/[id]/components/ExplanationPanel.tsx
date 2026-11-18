@@ -80,12 +80,15 @@ export function ExplanationPanel({
               </p>
             </div>
 
-            <div>
-              <p className="text-xs font-medium text-zinc-500">逐字直译</p>
-              <p data-testid="explanation-literal" className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
-                {latestAi.response_json.literal_translation || "（无）"}
-              </p>
-            </div>
+            {/* The model leaves this empty for advanced readers unless the structure is genuinely hard. */}
+            {latestAi.response_json.literal_translation ? (
+              <div>
+                <p className="text-xs font-medium text-zinc-500">逐字直译</p>
+                <p data-testid="explanation-literal" className="mt-1 text-sm text-zinc-700 dark:text-zinc-300">
+                  {latestAi.response_json.literal_translation}
+                </p>
+              </div>
+            ) : null}
 
             <div>
               <p className="text-xs font-medium text-zinc-500">语法点</p>
@@ -98,12 +101,12 @@ export function ExplanationPanel({
                     <span className="font-medium">{point.name}</span>：{point.explanation}
                   </li>
                 ))}
-                {latestAi.response_json.grammar_points.length === 0 ? <li>（无）</li> : null}
+                {latestAi.response_json.grammar_points.length === 0 ? <li>没有需要特别说明的语法。</li> : null}
               </ul>
             </div>
 
             <div>
-              <p className="text-xs font-medium text-zinc-500">逐词拆解</p>
+              <p className="text-xs font-medium text-zinc-500">重点词</p>
               <div
                 data-testid="explanation-token-breakdown"
                 className="mt-1 space-y-1 text-xs text-zinc-700 dark:text-zinc-300"
@@ -114,7 +117,7 @@ export function ExplanationPanel({
                     <span className="text-zinc-500"> · {item.role}</span>
                   </p>
                 ))}
-                {latestAi.response_json.token_breakdown.length === 0 ? <p>（无）</p> : null}
+                {latestAi.response_json.token_breakdown.length === 0 ? <p>这句没有超出你当前水平的生词。</p> : null}
               </div>
             </div>
 

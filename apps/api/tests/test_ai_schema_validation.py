@@ -86,3 +86,71 @@ def test_gemini_style_field_names_are_normalized() -> None:
     assert result["omissions"] == ["主语「わたし」：上下文已明确，省略。"]
     assert result["token_breakdown"][0]["role"] == "名詞"
     assert result["translation_zh"].startswith("我甚至")
+
+
+def _base_explanation(**overrides):
+    raw = {
+        "translation_zh": "只有那一带才是像样的沙滩。",
+        "literal_translation": "",
+        "grammar_points": [],
+        "token_breakdown": [],
+        "omissions": [],
+        "nuance": "",
+        "examples": [],
+    }
+    raw.update(overrides)
+    return raw
+
+
+def test_brief_explanation_drops_trivial_tokens_and_caps_lists() -> None:
+    from app.services.ai_explanation_service import _stabilize_explanation_json
+
+    tokens = [
+        {"surface": "の", "lemma": "の", "reading": "ノ", "meaning": "的", "role": "particle"},
+        {"surface": "、", "lemma": "、", "reading": "、", "meaning": "顿号", "role": "punctuation"},
+        {"surface": "です", "lemma": "です", "reading": "デス", "meaning": "是", "role": "助動詞"},
+    ] + [
+        {"surface": f"語{i}", "lemma": f"語{i}", "reading": "ゴ", "meaning": "词", "role": "noun"} for i in range(12)
+    ]
+    raw = _base_explanation(
+        token_breakdown=tokens,
+        grammar_points=[{"name": f"文法{i}", "explanation": "x"} for i in range(5)],
+        examples=[{"jp": f"例{i}", "zh": "例"} for i in range(4)],
+    )
+
+    result = _stabilize_explanation_json(raw, "町の砂浜らしい砂浜です。", "N1")
+
+    surfaces = [item["surface"] for item in result["token_breakdown"]]
+    assert "の" not in surfaces and "、" not in surfaces and "です" not in surfaces
+    assert len(surfaces) == 8
+    assert len(result["grammar_points"]) == 3
+    assert len(result["examples"]) == 2
+
+
+def test_basic_builtin_grammar_only_added_below_n2() -> None:
+    from app.services.ai_explanation_service import _stabilize_explanation_json
+
+    sentence = "雨が降っている。"
+    advanced = _stabilize_explanation_json(_base_explanation(), sentence, "N1")
+    beginner = _stabilize_explanation_json(_base_explanation(), sentence, "N3")
+
+    assert all(point["name"] != "ている" for point in advanced["grammar_points"])
+    assert any(point["name"] == "ている" for point in beginner["grammar_points"])
+
+
+def test_words_easier_than_reader_level_are_removed_but_unknown_kept() -> None:
+    from app.services.ai_explanation_service import _drop_words_below_level
+
+    breakdown = [
+        {"surface": "屋根", "lemma": "屋根"},  # N3 in our data
+        {"surface": "砂浜", "lemma": "砂浜"},  # N1 in our data
+        {"surface": "屋根越し", "lemma": "屋根越し"},  # compound, no level -> keep
+    ]
+    tokens = [{"surface": "屋根", "lemma": "屋根", "jlpt_level": "N3"}]
+    hints = [{"lemma": "砂浜", "jlpt_level": "N1"}]
+
+    n1 = [item["surface"] for item in _drop_words_below_level(breakdown, "N1", tokens, hints)]
+    n3 = [item["surface"] for item in _drop_words_below_level(breakdown, "N3", tokens, hints)]
+
+    assert n1 == ["砂浜", "屋根越し"]
+    assert n3 == ["屋根", "砂浜", "屋根越し"]

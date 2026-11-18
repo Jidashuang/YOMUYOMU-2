@@ -10,7 +10,7 @@ const previewBooks = PUBLIC_BOOKS.slice(0, 4);
 
 const READING_LOOP: Array<{ step: string; title: string; body: string }> = [
   { step: "01", title: "难词标注", body: "N3+ / N2+ / N1 三档高亮，颜色只服务阅读，不抢正文。" },
-  { step: "02", title: "AI 句子拆解", body: "选中一句，得到中文释义、语法点和逐词拆解。" },
+  { step: "02", title: "AI 句子拆解", body: "选中一句，得到中文释义、语法点，以及按你水平挑出的重点词。" },
   { step: "03", title: "生词回流", body: "点词或采纳 AI 建议词，一键加入生词本，之后到期复习。" },
 ];
 
