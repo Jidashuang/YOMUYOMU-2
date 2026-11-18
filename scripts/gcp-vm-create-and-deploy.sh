@@ -2,17 +2,21 @@
 set -euo pipefail
 
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}"
-EXPECTED_GCLOUD_ACCOUNT="jidashuang8@gmail.com"
-EXPECTED_GCP_PROJECT="project-c2a014a9-0b24-44a9-abb"
-ZONE="${ZONE:-us-west1-b}"
+EXPECTED_GCLOUD_ACCOUNT="${EXPECTED_GCLOUD_ACCOUNT:-zm5848746@gmail.com}"
+EXPECTED_GCP_PROJECT="${EXPECTED_GCP_PROJECT:-gen-lang-client-0186292874}"
+ZONE="${ZONE:-asia-northeast1-b}"
 INSTANCE_NAME="${INSTANCE_NAME:-yomuyomu-vm}"
-MACHINE_TYPE="${MACHINE_TYPE:-e2-micro}"
+MACHINE_TYPE="${MACHINE_TYPE:-e2-standard-2}"
 BOOT_DISK_SIZE="${BOOT_DISK_SIZE:-30GB}"
 FIREWALL_RULE="${FIREWALL_RULE:-yomuyomu-allow-http-https}"
 NETWORK="${NETWORK:-default}"
 NETWORK_TAG="${NETWORK_TAG:-yomuyomu-web}"
 REPO_URL="${REPO_URL:-https://github.com/Jidashuang/YOMUYOMU-2.git}"
 BRANCH="${BRANCH:-$(git branch --show-current 2>/dev/null || echo main)}"
+# Public domain. Caddy only switches to it (and fetches HTTPS certs) once its A record points at the VM.
+DOMAIN="${DOMAIN:-genbun.live}"
+REGION="${ZONE%-*}"
+ADDRESS_NAME="${ADDRESS_NAME:-yomuyomu-ip}"
 
 if [ -z "$PROJECT_ID" ]; then
   echo "Set PROJECT_ID or run: gcloud config set project YOUR_PROJECT_ID" >&2
@@ -49,7 +53,16 @@ fi
 
 gcloud config set project "$PROJECT_ID"
 gcloud config set compute/zone "$ZONE"
-gcloud services enable compute.googleapis.com --quiet
+gcloud services enable compute.googleapis.com aiplatform.googleapis.com --quiet
+
+# The API calls Gemini through Vertex AI with the VM's default service account.
+PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
+VM_SERVICE_ACCOUNT="$PROJECT_NUMBER-compute@developer.gserviceaccount.com"
+gcloud projects add-iam-policy-binding "$PROJECT_ID" \
+  --member "serviceAccount:$VM_SERVICE_ACCOUNT" \
+  --role roles/aiplatform.user \
+  --condition None \
+  --quiet >/dev/null
 
 if ! gcloud compute firewall-rules describe "$FIREWALL_RULE" >/dev/null 2>&1; then
   gcloud compute firewall-rules create "$FIREWALL_RULE" \
@@ -60,9 +73,17 @@ if ! gcloud compute firewall-rules describe "$FIREWALL_RULE" >/dev/null 2>&1; th
     --quiet
 fi
 
+# Reserve a static external IP so the domain's A record never goes stale after a VM restart.
+if ! gcloud compute addresses describe "$ADDRESS_NAME" --region "$REGION" >/dev/null 2>&1; then
+  gcloud compute addresses create "$ADDRESS_NAME" --region "$REGION" --quiet
+fi
+STATIC_IP="$(gcloud compute addresses describe "$ADDRESS_NAME" --region "$REGION" --format='get(address)')"
+
 if ! gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" >/dev/null 2>&1; then
   gcloud compute instances create "$INSTANCE_NAME" \
     --zone "$ZONE" \
+    --address "$STATIC_IP" \
+    --scopes cloud-platform \
     --machine-type "$MACHINE_TYPE" \
     --image-family ubuntu-2404-lts-amd64 \
     --image-project ubuntu-os-cloud \
@@ -78,6 +99,14 @@ echo "Waiting for VM startup script..."
 gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "cloud-init status --wait || true" --quiet
 
 EXTERNAL_IP="$(gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)')"
+
+if [ -n "$DOMAIN" ] && [ "$(dig +short "$DOMAIN" A 2>/dev/null | tail -n 1)" = "$EXTERNAL_IP" ]; then
+  SITE_ADDRESS="$DOMAIN"
+  WEB_ORIGIN="https://$DOMAIN"
+else
+  SITE_ADDRESS=":80"
+  WEB_ORIGIN="http://$EXTERNAL_IP"
+fi
 REMOTE_SCRIPT="$(mktemp)"
 
 cat > "$REMOTE_SCRIPT" <<REMOTE
@@ -127,13 +156,16 @@ GEMINI_MODEL=google/gemini-3.5-flash
 AI_PROMPT_VERSION=v2
 AI_CACHE_TTL_SECONDS=86400
 
-YOMUYOMU_SITE_ADDRESS=:80
-WEB_ORIGIN=http://$EXTERNAL_IP
+YOMUYOMU_SITE_ADDRESS=$SITE_ADDRESS
+WEB_ORIGIN=$WEB_ORIGIN
 NEXT_PUBLIC_API_BASE_URL=/api
 NEXT_PUBLIC_NLP_BASE_URL=/nlp
 ALLOW_SEED_FALLBACK=true
 ENV
 fi
+
+# Re-runs switch an existing env from IP to the domain once DNS is ready.
+sed -i "s|^YOMUYOMU_SITE_ADDRESS=.*|YOMUYOMU_SITE_ADDRESS=$SITE_ADDRESS|; s|^WEB_ORIGIN=.*|WEB_ORIGIN=$WEB_ORIGIN|" .env.gcp-vm
 
 sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml up -d --build
 sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml ps
@@ -156,4 +188,10 @@ gcloud compute scp "$REMOTE_SCRIPT" "$INSTANCE_NAME:/tmp/yomuyomu-vm-deploy.sh" 
 gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "bash /tmp/yomuyomu-vm-deploy.sh" --quiet
 rm -f "$REMOTE_SCRIPT"
 
-echo "Yomuyomu should be available at: http://$EXTERNAL_IP"
+echo "Yomuyomu should be available at: $WEB_ORIGIN"
+if [ "$SITE_ADDRESS" = ":80" ] && [ -n "$DOMAIN" ]; then
+  echo
+  echo "To serve it at https://$DOMAIN, add this DNS record at your registrar:"
+  echo "  type=A  host=@  value=$EXTERNAL_IP"
+  echo "Then rerun this script; it switches Caddy to $DOMAIN and fetches the HTTPS certificate."
+fi

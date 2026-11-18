@@ -4,13 +4,14 @@ set -euo pipefail
 ACTION="${1:-status}"
 ACTION_ARGS=("${@:2}")
 PROJECT_ID="${PROJECT_ID:-$(gcloud config get-value project 2>/dev/null || true)}"
-EXPECTED_GCLOUD_ACCOUNT="jidashuang8@gmail.com"
-EXPECTED_GCP_PROJECT="project-c2a014a9-0b24-44a9-abb"
-ZONE="${ZONE:-us-west1-b}"
+EXPECTED_GCLOUD_ACCOUNT="${EXPECTED_GCLOUD_ACCOUNT:-zm5848746@gmail.com}"
+EXPECTED_GCP_PROJECT="${EXPECTED_GCP_PROJECT:-gen-lang-client-0186292874}"
+ZONE="${ZONE:-asia-northeast1-b}"
 INSTANCE_NAME="${INSTANCE_NAME:-yomuyomu-vm}"
-SSH_USER="${SSH_USER:-jidashuang8}"
+SSH_USER="${SSH_USER:-zm5848746}"
 SSH_TARGET="$SSH_USER@$INSTANCE_NAME"
 BRANCH="${BRANCH:-feat/positioning-validation-pivot}"
+DOMAIN="${DOMAIN:-genbun.live}"
 
 if [ -z "$PROJECT_ID" ]; then
   echo "Set PROJECT_ID or run: gcloud config set project YOUR_PROJECT_ID" >&2
@@ -49,6 +50,16 @@ instance_status() {
 
 external_ip() {
   gcloud compute instances describe "$INSTANCE_NAME" --zone "$ZONE" --format='get(networkInterfaces[0].accessConfigs[0].natIP)'
+}
+
+# Use https://DOMAIN once DNS points at this VM; fall back to the raw IP otherwise.
+public_url() {
+  local ip="$1"
+  if [ -n "$DOMAIN" ] && [ "$(dig +short "$DOMAIN" A 2>/dev/null | tail -n 1)" = "$ip" ]; then
+    echo "https://$DOMAIN"
+  else
+    echo "http://$ip"
+  fi
 }
 
 remote_compose() {
@@ -101,7 +112,8 @@ case "$ACTION" in
     echo "instance=$INSTANCE_NAME zone=$ZONE status=$STATUS"
     if [ "$STATUS" = "RUNNING" ]; then
       IP="$(external_ip)"
-      echo "url=http://$IP"
+      PUBLIC_URL="$(public_url "$IP")"
+      echo "url=$PUBLIC_URL"
       gcloud compute ssh "$SSH_TARGET" --zone "$ZONE" --command "cd ~/yomuyomu && sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml ps" || true
     fi
     ;;
@@ -113,21 +125,22 @@ case "$ACTION" in
       exit 1
     fi
     IP="$(external_ip)"
-    echo "url=http://$IP"
+    PUBLIC_URL="$(public_url "$IP")"
+    echo "url=$PUBLIC_URL"
     FAILED=0
-    if curl -fsS --max-time 10 "http://$IP/" >/dev/null; then
+    if curl -fsS --max-time 10 "$PUBLIC_URL/" >/dev/null; then
       echo "ok: public homepage"
     else
       echo "fail: public homepage" >&2
       FAILED=1
     fi
-    if curl -fsS --max-time 10 "http://$IP/api/health" | grep -q '"status":"ok"'; then
+    if curl -fsS --max-time 10 "$PUBLIC_URL/api/health" | grep -q '"status":"ok"'; then
       echo "ok: public api health"
     else
       echo "fail: public api health" >&2
       FAILED=1
     fi
-    if curl -fsS --max-time 10 "http://$IP/nlp/health" | grep -q '"status":"ok"'; then
+    if curl -fsS --max-time 10 "$PUBLIC_URL/nlp/health" | grep -q '"status":"ok"'; then
       echo "ok: public nlp health"
     else
       echo "fail: public nlp health" >&2
@@ -163,8 +176,9 @@ case "$ACTION" in
       exit 1
     fi
     IP="$(external_ip)"
-    API_BASE_URL="http://$IP/api"
-    NLP_BASE_URL="http://$IP/nlp"
+    PUBLIC_URL="$(public_url "$IP")"
+    API_BASE_URL="$PUBLIC_URL/api"
+    NLP_BASE_URL="$PUBLIC_URL/nlp"
     echo "api=$API_BASE_URL"
     curl -fsS --max-time 10 "$API_BASE_URL/health" | grep -q '"status":"ok"'
     check_public_nlp_health "$NLP_BASE_URL"
@@ -193,9 +207,10 @@ case "$ACTION" in
     fi
     ensure_playwright_chromium
     IP="$(external_ip)"
-    WEB_BASE_URL="http://$IP"
-    API_BASE_URL="http://$IP/api"
-    NLP_BASE_URL="http://$IP/nlp"
+    PUBLIC_URL="$(public_url "$IP")"
+    WEB_BASE_URL="$PUBLIC_URL"
+    API_BASE_URL="$PUBLIC_URL/api"
+    NLP_BASE_URL="$PUBLIC_URL/nlp"
     echo "url=$WEB_BASE_URL"
     curl -fsS --max-time 10 "$API_BASE_URL/health" | grep -q '"status":"ok"'
     check_public_nlp_health "$NLP_BASE_URL"
@@ -214,7 +229,8 @@ case "$ACTION" in
   start)
     gcloud compute instances start "$INSTANCE_NAME" --zone "$ZONE"
     IP="$(external_ip)"
-    echo "url=http://$IP"
+    PUBLIC_URL="$(public_url "$IP")"
+    echo "url=$PUBLIC_URL"
     ;;
   stop)
     gcloud compute instances stop "$INSTANCE_NAME" --zone "$ZONE"
@@ -237,7 +253,8 @@ case "$ACTION" in
     "
     wait_for_health
     IP="$(external_ip)"
-    echo "url=http://$IP"
+    PUBLIC_URL="$(public_url "$IP")"
+    echo "url=$PUBLIC_URL"
     ;;
   backup-db)
     BACKUP_NAME="yomuyomu-$(date -u +%Y%m%dT%H%M%SZ).dump"
