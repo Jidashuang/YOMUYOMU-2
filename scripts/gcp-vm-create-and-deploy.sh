@@ -198,6 +198,20 @@ gcloud compute scp "$REMOTE_SCRIPT" "$INSTANCE_NAME:/tmp/yomuyomu-vm-deploy.sh" 
 gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --command "bash /tmp/yomuyomu-vm-deploy.sh" --quiet
 rm -f "$REMOTE_SCRIPT"
 
+# jmdict.sqlite (~260 MB) is gitignored, so the VM clone never has it. Upload it once from this machine,
+# then turn off the seed-only fallback so lookups use the real dictionary.
+LOCAL_JMDICT="services/nlp/data/jmdict.sqlite"
+if [ -f "$LOCAL_JMDICT" ]; then
+  if ! gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --quiet --command "test -s ~/yomuyomu/$LOCAL_JMDICT"; then
+    echo "Uploading $LOCAL_JMDICT to the VM..."
+    gcloud compute scp "$LOCAL_JMDICT" "$INSTANCE_NAME:/tmp/jmdict.sqlite" --zone "$ZONE" --quiet
+    gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --quiet --command "mv /tmp/jmdict.sqlite ~/yomuyomu/$LOCAL_JMDICT && chmod 644 ~/yomuyomu/$LOCAL_JMDICT"
+  fi
+  gcloud compute ssh "$INSTANCE_NAME" --zone "$ZONE" --quiet --command "cd ~/yomuyomu && sed -i 's/^ALLOW_SEED_FALLBACK=.*/ALLOW_SEED_FALLBACK=false/' .env.gcp-vm && sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml up -d nlp"
+else
+  echo "warning: $LOCAL_JMDICT not found locally; dictionary lookups on the VM stay in seed-only mode." >&2
+fi
+
 echo "Yomuyomu should be available at: $WEB_ORIGIN"
 if [ "$SITE_ADDRESS" = ":80" ] && [ -n "$DOMAIN" ]; then
   echo

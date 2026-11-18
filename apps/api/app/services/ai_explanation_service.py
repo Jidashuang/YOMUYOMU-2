@@ -177,10 +177,15 @@ def _normalize_explanation_shape(response_json: dict[str, Any]) -> dict[str, Any
         if not isinstance(item, dict):
             continue
         updated = dict(item)
-        if not updated.get("name") and updated.get("grammar"):
-            updated["name"] = updated["grammar"]
-        if not updated.get("name") and updated.get("structure"):
-            updated["name"] = updated["structure"]
+        for alias in ("grammar", "grammar_point", "pattern", "point", "structure", "title"):
+            if not updated.get("name") and updated.get(alias):
+                updated["name"] = updated[alias]
+        if not updated.get("explanation"):
+            updated["explanation"] = str(updated.get("meaning") or updated.get("description") or "").strip()
+        elif updated.get("meaning") and str(updated["meaning"]) not in str(updated["explanation"]):
+            updated["explanation"] = f"{updated['meaning']}。{updated['explanation']}"
+        if not updated.get("name"):
+            continue
         grammar_points.append(updated)
     normalized["grammar_points"] = grammar_points
 
@@ -199,6 +204,17 @@ def _normalize_explanation_shape(response_json: dict[str, Any]) -> dict[str, Any
     omissions = normalized.get("omissions", [])
     if isinstance(omissions, str):
         normalized["omissions"] = [omissions] if omissions.strip() else []
+    elif isinstance(omissions, list):
+        # Models sometimes return {"omitted_element": ..., "explanation": ...} objects; flatten to text.
+        flattened: list[str] = []
+        for item in omissions:
+            if isinstance(item, dict):
+                text = "：".join(str(value).strip() for value in item.values() if str(value).strip())
+            else:
+                text = str(item).strip()
+            if text:
+                flattened.append(text)
+        normalized["omissions"] = flattened
 
     examples = []
     for item in normalized.get("examples", []):

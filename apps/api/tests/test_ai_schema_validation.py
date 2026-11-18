@@ -55,3 +55,34 @@ def test_ai_explanation_schema_validation(monkeypatch) -> None:
     assert meta["provider"]
     assert meta["prompt_version"]
     assert isinstance(meta.get("suggested_vocab"), list)
+
+
+def test_gemini_style_field_names_are_normalized() -> None:
+    """Gemini 3.5 Flash returned grammar_point/meaning keys and object omissions (genbun.live, 2026-11-18)."""
+    from app.services.ai_explanation_service import _stabilize_explanation_json
+
+    sentence = "そんな阿呆らしい夢みたいな情景を想像しながら、あたりを窺うことが何遍もあったほどです。"
+    raw = {
+        "translation_zh": "我甚至曾多次一边想象着那样荒诞如梦境般的场景，一边窥视着四周。",
+        "literal_translation": "一边想象……一边窥视四周的事情发生过好多次。",
+        "grammar_points": [
+            {"grammar_point": "〜ながら", "meaning": "一边……一边……", "explanation": "表示两个动作同时进行。"},
+            {"pattern": "〜ほどです", "meaning": "到了……的程度"},
+        ],
+        "token_breakdown": [
+            {"surface": "夢", "lemma": "夢", "pos": "名詞", "reading": "ユメ", "meaning": "梦"},
+        ],
+        "omissions": [{"omitted_element": "主语「わたし」", "explanation": "上下文已明确，省略。"}],
+        "nuance": "带自嘲语气。",
+        "examples": [],
+    }
+
+    result = _stabilize_explanation_json(raw, sentence)
+
+    names = [point["name"] for point in result["grammar_points"]]
+    assert "〜ながら" in names and "〜ほどです" in names
+    nagara = next(point for point in result["grammar_points"] if point["name"] == "〜ながら")
+    assert "一边" in nagara["explanation"]
+    assert result["omissions"] == ["主语「わたし」：上下文已明确，省略。"]
+    assert result["token_breakdown"][0]["role"] == "名詞"
+    assert result["translation_zh"].startswith("我甚至")

@@ -134,7 +134,9 @@ def create_ai_explanation(
             tokenized_result=tokenized_result,
             dictionary_hints=dictionary_hints,
         )
-        save_cached_explanation(cache_key, response_json, meta)
+        # Don't cache fallbacks: a transient model/schema failure would otherwise stick for the whole TTL.
+        if not meta.get("error_type"):
+            save_cached_explanation(cache_key, response_json, meta)
 
     suggested_vocab_payload = meta.get("suggested_vocab")
     if not isinstance(suggested_vocab_payload, list):
