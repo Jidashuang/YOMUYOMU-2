@@ -52,8 +52,8 @@ if [ "$ACTIVE_ACCOUNT" != "$EXPECTED_GCLOUD_ACCOUNT" ]; then
 fi
 
 gcloud config set project "$PROJECT_ID"
-gcloud config set compute/zone "$ZONE"
 gcloud services enable compute.googleapis.com aiplatform.googleapis.com --quiet
+gcloud config set compute/zone "$ZONE"
 
 # The API calls Gemini through Vertex AI with the VM's default service account.
 PROJECT_NUMBER="$(gcloud projects describe "$PROJECT_ID" --format='value(projectNumber)')"
