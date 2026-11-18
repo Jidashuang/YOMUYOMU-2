@@ -170,8 +170,18 @@ sed -i "s|^YOMUYOMU_SITE_ADDRESS=.*|YOMUYOMU_SITE_ADDRESS=$SITE_ADDRESS|; s|^WEB
 sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml up -d --build
 sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml ps
 
+# Caddy only answers for the configured site, so probe it the way a browser would.
+SITE="$SITE_ADDRESS"
+lc() {
+  if [ "\$SITE" = ":80" ]; then
+    curl -fsS "http://localhost\$1"
+  else
+    curl -fsS --resolve "\$SITE:443:127.0.0.1" "https://\$SITE\$1"
+  fi
+}
+
 for attempt in {1..60}; do
-  if curl -fsS http://localhost/api/health | grep -q '"status":"ok"' && curl -fsS http://localhost/nlp/health | grep -q '"status":"ok"' && curl -fsS http://localhost/ >/dev/null; then
+  if lc /api/health | grep -q '"status":"ok"' && lc /nlp/health | grep -q '"status":"ok"' && lc / >/dev/null; then
     break
   fi
   if [ "\$attempt" -eq 60 ]; then

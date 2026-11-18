@@ -69,8 +69,9 @@ remote_compose() {
 wait_for_health() {
   gcloud compute ssh "$SSH_TARGET" --zone "$ZONE" --command '
     set -euo pipefail
+    SITE=$(sed -n "s/^YOMUYOMU_SITE_ADDRESS=//p" ~/yomuyomu/.env.gcp-vm 2>/dev/null); lc() { if [ -z "$SITE" ] || [ "$SITE" = ":80" ]; then curl -fsS --max-time 5 "http://localhost$1"; else curl -fsS --max-time 5 --resolve "$SITE:443:127.0.0.1" "https://$SITE$1"; fi; }
     for attempt in {1..60}; do
-      if curl -fsS http://localhost/api/health | grep -q '"status":"ok"' && curl -fsS http://localhost/nlp/health | grep -q '"status":"ok"' && curl -fsS http://localhost/ >/dev/null; then
+      if lc /api/health | grep -q '"status":"ok"' && lc /nlp/health | grep -q '"status":"ok"' && lc / >/dev/null; then
         exit 0
       fi
       sleep 5
@@ -160,9 +161,10 @@ case "$ACTION" in
       echo "--- listening ports ---"
       sudo ss -ltnp | grep -E ":(80|443|3000|8000|8001)\\b" || true
       echo "--- local checks ---"
-      curl -fsS --max-time 5 http://localhost/ >/dev/null && echo "ok: local homepage" || echo "fail: local homepage"
-      curl -fsS --max-time 5 http://localhost/api/health | grep -q "\"status\":\"ok\"" && echo "ok: local api health" || echo "fail: local api health"
-      curl -fsS --max-time 5 http://localhost/nlp/health | grep -q "\"status\":\"ok\"" && echo "ok: local nlp health" || echo "fail: local nlp health"
+      SITE=$(sed -n "s/^YOMUYOMU_SITE_ADDRESS=//p" ~/yomuyomu/.env.gcp-vm 2>/dev/null); lc() { if [ -z "$SITE" ] || [ "$SITE" = ":80" ]; then curl -fsS --max-time 5 "http://localhost$1"; else curl -fsS --max-time 5 --resolve "$SITE:443:127.0.0.1" "https://$SITE$1"; fi; }
+      lc / >/dev/null && echo "ok: local homepage" || echo "fail: local homepage"
+      lc /api/health | grep -q "\"status\":\"ok\"" && echo "ok: local api health" || echo "fail: local api health"
+      lc /nlp/health | grep -q "\"status\":\"ok\"" && echo "ok: local nlp health" || echo "fail: local nlp health"
       echo "--- recent logs ---"
       sudo docker compose --env-file .env.gcp-vm -f docker-compose.gcp-vm.yml logs --tail=80 caddy web api nlp
     ' || true
