@@ -41,6 +41,8 @@ from app.services.product_analytics import (
 router = APIRouter(prefix="/ai-explanations", tags=["ai-explanations"])
 logger = logging.getLogger(__name__)
 
+FREE_PROVIDERS = ("wikimedia-mint-rules", "mock")
+
 
 def _validate_article_access(db: Session, article_id: UUID, user_id: UUID) -> Article:
     article = db.scalar(select(Article).where(Article.id == article_id, Article.user_id == user_id))
@@ -77,6 +79,41 @@ def _enforce_daily_quota(db: Session, user_id: UUID, daily_limit: int) -> None:
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail=f"过去 24 小时的 AI 解释次数已用完（上限 {daily_limit} 次），请晚些再试。查词和阅读不受影响。",
+        )
+
+
+def estimate_ai_spend_last_24h(db: Session) -> float:
+    """Estimated USD spent on newly generated (non-cache) explanations across all users in the last 24h."""
+    settings = get_settings()
+    since = datetime.now(timezone.utc) - timedelta(hours=24)
+    fresh = (AIExplanation.from_cache.is_(False), AIExplanation.created_at >= since)
+    prompt_tokens, completion_tokens = db.execute(
+        select(
+            func.coalesce(func.sum(AIExplanation.prompt_tokens), 0),
+            func.coalesce(func.sum(AIExplanation.completion_tokens), 0),
+        ).where(*fresh)
+    ).one()
+    unmetered_calls = db.scalar(
+        select(func.count())
+        .select_from(AIExplanation)
+        # Free providers (offline rules / tests) never cost anything; a failed Gemini call is stored as "gemini".
+        .where(*fresh, AIExplanation.prompt_tokens.is_(None), AIExplanation.provider.notin_(FREE_PROVIDERS))
+    )
+    return (
+        int(prompt_tokens) * settings.ai_input_usd_per_million / 1_000_000
+        + int(completion_tokens) * settings.ai_output_usd_per_million / 1_000_000
+        + int(unmetered_calls or 0) * settings.ai_unmetered_call_usd
+    )
+
+
+def _enforce_global_budget(db: Session) -> None:
+    settings = get_settings()
+    spent = estimate_ai_spend_last_24h(db)
+    if spent >= settings.ai_daily_budget_usd:
+        logger.warning("ai_global_budget_reached spent_usd=%.4f budget_usd=%.2f", spent, settings.ai_daily_budget_usd)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="今天全站的 AI 解释额度已用完，请明天再试。查词和阅读不受影响，已生成过的解释仍可查看。",
         )
 
 
@@ -126,6 +163,7 @@ def create_ai_explanation(
     else:
         # 只有真正要调用模型（会花钱）时才检查每日额度；读缓存不占额度
         _enforce_daily_quota(db, current_user.id, settings.ai_daily_limit)
+        _enforce_global_budget(db)
         response_json, meta = generate_explanation(
             sentence=payload.sentence,
             previous_sentence=payload.previous_sentence,

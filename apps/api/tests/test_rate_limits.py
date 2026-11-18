@@ -93,3 +93,51 @@ def test_daily_quota_counts_only_fresh_generations_in_last_24h() -> None:
         with pytest.raises(HTTPException) as excinfo:
             _enforce_daily_quota(db, user_id, 2)  # 用了 2 次，上限 2：拦住
         assert excinfo.value.status_code == 429
+
+
+def test_global_budget_estimates_spend_across_users(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.api.routes import ai_explanations as route
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "ai_input_usd_per_million", 1.5)
+    monkeypatch.setattr(settings, "ai_output_usd_per_million", 9.0)
+    monkeypatch.setattr(settings, "ai_unmetered_call_usd", 0.025)
+
+    engine = create_engine("sqlite+pysqlite:///:memory:")
+    AIExplanation.__table__.create(engine)
+    now = datetime.now(timezone.utc)
+
+    def row(provider: str, *, prompt: int | None, completion: int | None, from_cache: bool = False, hours: float = 1):
+        item = _explanation(uuid4(), from_cache=from_cache, created_at=now - timedelta(hours=hours))
+        item.provider = provider
+        item.prompt_tokens = prompt
+        item.completion_tokens = completion
+        return item
+
+    with Session(engine) as db:
+        db.add_all(
+            [
+                # Metered Gemini calls from different users: 1M input tokens -> $1.50
+                row("gemini", prompt=1_000_000, completion=0),
+                row("gemini", prompt=0, completion=0),
+                row("gemini", prompt=0, completion=100_000),  # $0.90
+                row("gemini", prompt=None, completion=None),  # failed call, charged conservatively: $0.025
+                # Free or not counted: offline fallback, cache hit, older than 24h
+                row("wikimedia-mint-rules", prompt=None, completion=None),
+                row("gemini", prompt=1_000_000, completion=0, from_cache=True),
+                row("gemini", prompt=1_000_000, completion=0, hours=30),
+            ]
+        )
+        db.commit()
+
+        assert route.estimate_ai_spend_last_24h(db) == pytest.approx(1.5 + 0.9 + 0.025)
+
+        monkeypatch.setattr(settings, "ai_daily_budget_usd", 3.0)
+        route._enforce_global_budget(db)  # $2.425 < $3: allowed
+
+        monkeypatch.setattr(settings, "ai_daily_budget_usd", 2.0)
+        with pytest.raises(HTTPException) as excinfo:
+            route._enforce_global_budget(db)
+        assert excinfo.value.status_code == 429
+        assert "全站" in excinfo.value.detail
